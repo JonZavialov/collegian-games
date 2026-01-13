@@ -66,11 +66,14 @@ function Game({ solution, hint, articleUrl, reset }) {
   const dictionarySet = useMemo(() => getDictionarySet(solution.length), [solution.length])
   const hasCompletedRef = useRef(false)
   const [roundIndex, setRoundIndex] = useState(1)
-  const analytics = useGameAnalytics('valley-vocab', roundIndex)
+  const { logAction, logContentClick, logLoss, logStart, logWin } = useGameAnalytics(
+    'valley-vocab',
+    roundIndex
+  )
   const handleGuessCapture = useCallback((payload) => {
     const roundIndexValue = payload.turn + 1
     setRoundIndex(roundIndexValue)
-    analytics.logAction(
+    logAction(
       'guess_submitted',
       {
         turn: payload.turn,
@@ -80,7 +83,7 @@ function Game({ solution, hint, articleUrl, reset }) {
       },
       roundIndexValue
     )
-  }, [analytics, solution.length])
+  }, [logAction, solution.length])
   const {
     currentGuess,
     guesses,
@@ -109,8 +112,8 @@ function Game({ solution, hint, articleUrl, reset }) {
 
   useEffect(() => {
     setRoundIndex(1)
-    analytics.logStart({ word_length: solution.length }, 1)
-  }, [analytics, solution.length])
+    logStart({ word_length: solution.length }, 1)
+  }, [logStart, solution.length])
 
   useEffect(() => {
     window.addEventListener('keyup', handleKeyup)
@@ -125,9 +128,9 @@ function Game({ solution, hint, articleUrl, reset }) {
         }
         const roundIndexValue = roundIndex
         if (isCorrect) {
-          analytics.logWin(metadata, roundIndexValue)
+          logWin(metadata, roundIndexValue)
         } else {
-          analytics.logLoss(metadata, roundIndexValue)
+          logLoss(metadata, roundIndexValue)
         }
         hasCompletedRef.current = true
       }
@@ -136,7 +139,7 @@ function Game({ solution, hint, articleUrl, reset }) {
     }
 
     return () => window.removeEventListener('keyup', handleKeyup)
-  }, [analytics, handleKeyup, isCorrect, roundIndex, solution.length, turn])
+  }, [handleKeyup, isCorrect, logLoss, logWin, roundIndex, solution.length, turn])
 
   return (
     <div className="min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6">
@@ -165,7 +168,7 @@ function Game({ solution, hint, articleUrl, reset }) {
                 rel="noreferrer"
                 className="mt-2 inline-flex text-sm font-semibold text-blue-700 underline underline-offset-4"
                 onClick={() =>
-                  analytics.logContentClick({
+                  logContentClick({
                     url: articleUrl,
                     word_length: solution.length,
                   })
@@ -217,8 +220,8 @@ function Game({ solution, hint, articleUrl, reset }) {
           solution={solution}
           articleUrl={articleUrl}
           handleReset={reset}
-          logAction={analytics.logAction}
-          logContentClick={analytics.logContentClick}
+          logAction={logAction}
+          logContentClick={logContentClick}
         />
       )}
     </div>
