@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import posthog from 'posthog-js'
 import useWordle from './hooks/useWordle'
 import Row from './components/Row'
 import Modal from './components/Modal'
 import Keyboard from './components/Keyboard'
 import { loadWordsFromSheet } from './data/words'
 import { getDictionarySet } from './data/dictionary'
+import useGameAnalytics from './hooks/useGameAnalytics'
 
 function App() {
   const [solutionObj, setSolutionObj] = useState(null)
@@ -64,20 +64,23 @@ function App() {
 // Separate Game component to allow easy resetting by changing the key in App
 function Game({ solution, hint, articleUrl, reset }) {
   const dictionarySet = useMemo(() => getDictionarySet(solution.length), [solution.length])
-  const hasStartedRef = useRef(false)
   const hasCompletedRef = useRef(false)
+  const [roundIndex, setRoundIndex] = useState(1)
+  const analytics = useGameAnalytics('valley-vocab', roundIndex)
   const handleGuessCapture = useCallback((payload) => {
-    if (!hasStartedRef.current) {
-      posthog.capture('game_started', { word_length: solution.length })
-      hasStartedRef.current = true
-    }
-    posthog.capture('guess_submitted', {
-      turn: payload.turn,
-      guess: payload.guess,
-      is_correct: payload.isCorrect,
-      word_length: solution.length,
-    })
-  }, [solution.length])
+    const roundIndexValue = payload.turn + 1
+    setRoundIndex(roundIndexValue)
+    analytics.logAction(
+      'guess_submitted',
+      {
+        turn: payload.turn,
+        guess: payload.guess,
+        is_correct: payload.isCorrect,
+        word_length: solution.length,
+      },
+      roundIndexValue
+    )
+  }, [analytics, solution.length])
   const {
     currentGuess,
     guesses,
@@ -105,16 +108,27 @@ function Game({ solution, hint, articleUrl, reset }) {
   }, [solution.length])
 
   useEffect(() => {
+    setRoundIndex(1)
+    analytics.logStart({ word_length: solution.length }, 1)
+  }, [analytics, solution.length])
+
+  useEffect(() => {
     window.addEventListener('keyup', handleKeyup)
 
     // End game logic
     if (isCorrect || turn > 5) {
       if (!hasCompletedRef.current) {
-        posthog.capture('game_completed', {
+        const metadata = {
           win: isCorrect,
           turns: isCorrect ? turn : 6,
           word_length: solution.length,
-        })
+        }
+        const roundIndexValue = roundIndex
+        if (isCorrect) {
+          analytics.logWin(metadata, roundIndexValue)
+        } else {
+          analytics.logLoss(metadata, roundIndexValue)
+        }
         hasCompletedRef.current = true
       }
       setTimeout(() => setShowModal(true), 2000)
@@ -122,7 +136,7 @@ function Game({ solution, hint, articleUrl, reset }) {
     }
 
     return () => window.removeEventListener('keyup', handleKeyup)
-  }, [handleKeyup, isCorrect, turn])
+  }, [analytics, handleKeyup, isCorrect, roundIndex, solution.length, turn])
 
   return (
     <div className="min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6">
@@ -150,6 +164,12 @@ function Game({ solution, hint, articleUrl, reset }) {
                 target="_blank"
                 rel="noreferrer"
                 className="mt-2 inline-flex text-sm font-semibold text-blue-700 underline underline-offset-4"
+                onClick={() =>
+                  analytics.logContentClick({
+                    url: articleUrl,
+                    word_length: solution.length,
+                  })
+                }
               >
                 Read the article
               </a>
@@ -197,6 +217,8 @@ function Game({ solution, hint, articleUrl, reset }) {
           solution={solution}
           articleUrl={articleUrl}
           handleReset={reset}
+          logAction={analytics.logAction}
+          logContentClick={analytics.logContentClick}
         />
       )}
     </div>
