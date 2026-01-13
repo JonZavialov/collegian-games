@@ -10,7 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import Confetti from "react-confetti";
-import posthog from "posthog-js"; // ✅ IMPORT POSTHOG
+import useGameAnalytics from "./hooks/useGameAnalytics";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -58,6 +58,7 @@ export default function TimeMachine() {
 
   const pdfWrapperRef = useRef(null);
   const [pdfWidth, setPdfWidth] = useState(600);
+  const analytics = useGameAnalytics("time-machine", pageNumber);
 
   useEffect(() => {
     // Optional: Initialize PostHog here if you haven't done it in main.jsx
@@ -85,8 +86,8 @@ export default function TimeMachine() {
     setGuessYear(1975);
 
     // 📊 TRACK: New Game Started
-    posthog.capture("tm_game_start");
-  }, []);
+    analytics.logStart({}, 1);
+  }, [analytics]);
 
   const handleLoadError = () => {
     if (pageNumber === 1) {
@@ -98,11 +99,14 @@ export default function TimeMachine() {
       setGameState("lost");
 
       // 📊 TRACK: Game Lost (Ran out of pages)
-      posthog.capture("tm_game_lost", {
+      analytics.logLoss(
+        {
         target_year: targetDate?.year,
         pages_viewed: pageNumber,
         score: score,
-      });
+        },
+        pageNumber
+      );
     }
   };
 
@@ -113,13 +117,17 @@ export default function TimeMachine() {
     const isWin = diff <= 2;
 
     // 📊 TRACK: Guess Submitted
-    posthog.capture("tm_guess", {
-      guessed_year: guessYear,
-      target_year: targetDate.year,
-      difference: diff,
-      result: isWin ? "win" : "miss",
-      page_number: pageNumber,
-    });
+    analytics.logAction(
+      "guess_submitted",
+      {
+        guessed_year: guessYear,
+        target_year: targetDate.year,
+        difference: diff,
+        result: isWin ? "win" : "miss",
+        page_number: pageNumber,
+      },
+      pageNumber
+    );
 
     // WIN CONDITION: +/- 2 Years
     if (isWin) {
@@ -128,10 +136,13 @@ export default function TimeMachine() {
       setFeedbackMsg(null);
 
       // 📊 TRACK: Win Streak
-      posthog.capture("tm_game_won", {
-        streak: score + 1,
-        target_year: targetDate.year,
-      });
+      analytics.logWin(
+        {
+          streak: score + 1,
+          target_year: targetDate.year,
+        },
+        pageNumber
+      );
     } else {
       // WRONG GUESS UX
       setShake(true);
@@ -187,11 +198,17 @@ export default function TimeMachine() {
 
   // Helper for tracking external link clicks
   const handleViewFullIssue = () => {
-    posthog.capture("tm_view_full_issue", {
+    analytics.logContentClick({
       target_year: targetDate?.year,
       url: originalLink,
     });
   };
+
+  useEffect(() => {
+    if (gameState === "playing" && pageNumber > 1) {
+      analytics.logAction("page_turn", { page_number: pageNumber }, pageNumber);
+    }
+  }, [analytics, gameState, pageNumber]);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
