@@ -12,7 +12,6 @@
   "dependencies": {
     "an-array-of-english-words": "^2.0.0",
     "papaparse": "^5.5.3",
-    "pg": "^8.16.3",
     "posthog-js": "^1.268.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
