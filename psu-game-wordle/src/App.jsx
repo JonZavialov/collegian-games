@@ -66,10 +66,14 @@ function Game({ solution, hint, articleUrl, reset }) {
   const dictionarySet = useMemo(() => getDictionarySet(solution.length), [solution.length])
   const hasStartedRef = useRef(false)
   const hasCompletedRef = useRef(false)
+  const [showHint, setShowHint] = useState(false)
   const handleGuessCapture = useCallback((payload) => {
     if (!hasStartedRef.current) {
       posthog.capture('game_started', { word_length: solution.length })
       hasStartedRef.current = true
+    }
+    if (!payload.isCorrect) {
+      setShowHint(true)
     }
     posthog.capture('guess_submitted', {
       turn: payload.turn,
@@ -129,7 +133,7 @@ function Game({ solution, hint, articleUrl, reset }) {
       <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue mb-6 sm:mb-8 tracking-tighter">Valley Vocab</h1>
       
       <div className="w-full max-w-md overflow-x-auto">
-        {turn === 0 && (hint || articleUrl) && (
+        {showHint && (hint || articleUrl) && (
           <div
             className="mb-4 rounded-xl border border-blue-200 px-4 py-3 shadow-sm"
             style={{ backgroundColor: 'rgba(23, 112, 223, 0.12)' }}
