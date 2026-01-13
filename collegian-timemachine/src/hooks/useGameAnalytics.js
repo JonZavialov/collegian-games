@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import posthog from "posthog-js";
 
 const useGameAnalytics = (gameId, roundIndex = 0) => {
@@ -80,13 +80,16 @@ const useGameAnalytics = (gameId, roundIndex = 0) => {
     [logEvent]
   );
 
-  return {
-    logStart,
-    logWin,
-    logLoss,
-    logAction,
-    logContentClick,
-  };
+  return useMemo(
+    () => ({
+      logStart,
+      logWin,
+      logLoss,
+      logAction,
+      logContentClick,
+    }),
+    [logAction, logContentClick, logLoss, logStart, logWin]
+  );
 };
 
 export default useGameAnalytics;
