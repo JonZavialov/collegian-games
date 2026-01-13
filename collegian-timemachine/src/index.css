@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: transparent; /* Allows the newspaper's background to show through if needed */
+}
