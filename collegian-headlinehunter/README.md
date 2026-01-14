@@ -28,7 +28,7 @@
 - **Icons:** Lucide React
 - **Data Parsing:** Native `DOMParser` (No heavy XML libraries required)
 - **Analytics:** PostHog
-- **Proxy:** Uses `corsproxy.io` to bypass CORS restrictions on the RSS feed.
+- **Proxy:** Netlify redirects (production) and Vite proxy (development).
 
 ---
 
@@ -68,19 +68,12 @@ You can customize the content source by editing the constants at the top of `src
 Want to make a "Sports Only" version? Change the RSS URL search parameters:
 
 ```javascript
-// Current: All Articles
-const RSS_URL =
-  "[https://www.psucollegian.com/search/?f=rss&l=50&t=article&fulltext=collegian3345](https://www.psucollegian.com/search/?f=rss&l=50&t=article&fulltext=collegian3345)";
+// Current: All Articles (relative endpoint)
+const RSS_ENDPOINT = "/rss";
 
 // Example: Sports Only
-// const RSS_URL = "[https://www.psucollegian.com/search/?f=rss&t=article&c=sports](https://www.psucollegian.com/search/?f=rss&t=article&c=sports)";
-```
-
-**CORS Proxy:**
-Since the news site does not allow Direct requests from the browser, a proxy is required:
-
-```javascript
-const CORS_PROXY = "[https://corsproxy.io/](https://corsproxy.io/)?";
+// Update the Netlify redirect and Vite proxy to point to:
+// https://www.psucollegian.com/search/?f=rss&t=article&c=sports
 ```
 
 ---

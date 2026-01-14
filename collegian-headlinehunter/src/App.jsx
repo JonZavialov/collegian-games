@@ -11,10 +11,7 @@ import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 
 // CONFIGURATION
-// We use the proxy to get around CORS blocks on the RSS feed
-const CORS_PROXY = "https://corsproxy.io/?";
-const RSS_URL =
-  "https://www.psucollegian.com/search/?f=rss&l=50&t=article&fulltext=collegian3345";
+const RSS_ENDPOINT = "/rss";
 
 export default function HeadlineHunter() {
   const [articles, setArticles] = useState([]);
@@ -34,9 +31,7 @@ export default function HeadlineHunter() {
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        const response = await fetch(
-          `${CORS_PROXY}${encodeURIComponent(RSS_URL)}`
-        );
+        const response = await fetch(RSS_ENDPOINT);
         const text = await response.text();
 
         // Parse XML using browser's built-in parser

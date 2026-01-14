@@ -70,8 +70,8 @@ const END_YEAR = 2010;
 // The Newspaper ID (sn85054904 is The Daily Collegian)
 const COLLEGIAN_LCCN = "sn85054904";
 
-// CORS Proxy (Required to load PDFs from external PSU servers)
-const CORS_PROXY = "[https://corsproxy.io/](https://corsproxy.io/)?";
+// Archive endpoint (handled by Netlify redirects or Vite proxy)
+const ARCHIVE_BASE_PATH = "/archive";
 ```
 
 ---
