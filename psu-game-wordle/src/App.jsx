@@ -78,12 +78,16 @@ function Game({ solution, hint, articleUrl, reset }) {
   );
   const hasCompletedRef = useRef(false);
   const [roundIndex, setRoundIndex] = useState(1);
+  const [showHint, setShowHint] = useState(false);
   const { logAction, logContentClick, logLoss, logStart, logWin } =
     useGameAnalytics("valley-vocab", roundIndex);
   const handleGuessCapture = useCallback(
     (payload) => {
       const roundIndexValue = payload.turn + 1;
       setRoundIndex(roundIndexValue);
+      if (!payload.isCorrect) {
+        setShowHint(true);
+      }
       logAction(
         "guess_submitted",
         {
