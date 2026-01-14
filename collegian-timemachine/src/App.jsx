@@ -59,6 +59,7 @@ export default function TimeMachine() {
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+  const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
@@ -79,6 +80,26 @@ export default function TimeMachine() {
     window.addEventListener("resize", updateWidth);
     setTimeout(updateWidth, 500);
     return () => window.removeEventListener("resize", updateWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!pdfWrapperRef.current) {
+      return;
+    }
+
+    const updatePdfWidth = () => {
+      const containerWidth = pdfWrapperRef.current?.clientWidth ?? 0;
+      const nextWidth = Math.max(containerWidth - 32, 320);
+      setPdfViewportWidth(nextWidth);
+    };
+
+    updatePdfWidth();
+    const observer = new ResizeObserver(updatePdfWidth);
+    observer.observe(pdfWrapperRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
   }, []);
 
   const startNewGame = useCallback(() => {
@@ -175,7 +196,10 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
-    const scaleFactor = zoomLevel * (isMobile ? 0.6 : 1);
+    const baseScale = pdfViewportWidth
+      ? pdfViewportWidth / viewport.width
+      : 1;
+    const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
     textContent.items.forEach((item) => {
       if (item.str.includes(targetYearStr)) {
@@ -521,7 +545,13 @@ export default function TimeMachine() {
           )}
 
           {shouldRenderPdf && (
-            <div className="relative bg-white min-h-[800px] shadow-2xl overflow-auto">
+            <div
+              className={`relative bg-white min-h-[800px] shadow-2xl ${
+                zoomLevel === 1
+                  ? "overflow-y-auto overflow-x-hidden"
+                  : "overflow-auto"
+              }`}
+            >
               <div className="relative mx-auto w-fit">
                 <Document
                   key={documentKey}
@@ -533,6 +563,7 @@ export default function TimeMachine() {
                   <Page
                     pageNumber={1}
                     scale={pageScale}
+                    width={pdfViewportWidth ?? undefined}
                     onLoadSuccess={onPageLoadSuccess}
                     devicePixelRatio={devicePixelRatio}
                     renderAnnotationLayer={false}
