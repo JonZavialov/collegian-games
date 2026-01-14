@@ -59,6 +59,10 @@ export default function TimeMachine() {
   const pdfWrapperRef = useRef(null);
   const [pdfWidth, setPdfWidth] = useState(600);
   const analytics = useGameAnalytics("time-machine", pageNumber);
+  const devicePixelRatio =
+    typeof window !== "undefined"
+      ? Math.min(window.devicePixelRatio || 1, 2)
+      : 1;
 
   useEffect(() => {
     // Optional: Initialize PostHog here if you haven't done it in main.jsx
@@ -414,6 +418,7 @@ export default function TimeMachine() {
                   pageNumber={1}
                   width={pdfWidth}
                   onLoadSuccess={onPageLoadSuccess}
+                  devicePixelRatio={devicePixelRatio}
                   renderAnnotationLayer={false}
                   renderTextLayer={true}
                   className="shadow-xl"
