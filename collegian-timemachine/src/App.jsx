@@ -420,7 +420,8 @@ export default function TimeMachine() {
                   onLoadSuccess={onPageLoadSuccess}
                   devicePixelRatio={devicePixelRatio}
                   renderAnnotationLayer={false}
-                  renderTextLayer={true}
+                  renderTextLayer={false}
+                  renderMode="svg"
                   className="shadow-xl"
                 />
               </Document>
