@@ -1,13 +1,20 @@
 import React from 'react'
-import posthog from 'posthog-js'
 
-export default function Modal({ isCorrect, turn, solution, articleUrl, handleReset }) {
+export default function Modal({
+  isCorrect,
+  turn,
+  solution,
+  articleUrl,
+  handleReset,
+  logAction,
+  logContentClick,
+}) {
   
   const copyToClipboard = () => {
     // Generate a simple result string (e.g. "Football Wordle: 4/6")
     const text = `Football Wordle 🏈\nScore: ${isCorrect ? turn : 'X'}/6`;
     navigator.clipboard.writeText(text);
-    posthog.capture('share_clicked', { is_correct: isCorrect, turns: isCorrect ? turn : 6 })
+    logAction('share_clicked', { is_correct: isCorrect, turns: isCorrect ? turn : 6 }, turn + 1)
     alert('Copied to clipboard!');
   }
 
@@ -26,6 +33,9 @@ export default function Modal({ isCorrect, turn, solution, articleUrl, handleRes
               href={articleUrl}
               target="_blank"
               rel="noreferrer"
+              onClick={() =>
+                logContentClick({ url: articleUrl, solution }, turn + 1)
+              }
             >
               {solution}
             </a>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import posthog from "posthog-js";
 import Confetti from "react-confetti";
 import Papa from "papaparse";
 import {
@@ -11,6 +10,7 @@ import {
   Flame,
   XCircle,
 } from "lucide-react";
+import useGameAnalytics from "./hooks/useGameAnalytics";
 
 // REPLACE WITH YOUR PUBLISHED CSV LINK
 const GOOGLE_SHEET_URL =
@@ -35,6 +35,8 @@ export default function BeatTheEditor() {
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
+  const roundIndex = currentQ + 1;
+  const analytics = useGameAnalytics("beat-the-editor", roundIndex);
 
   // Engagement / Streak State
   const [streak, setStreak] = useState(0);
@@ -139,11 +141,15 @@ export default function BeatTheEditor() {
     const isCorrect = index === quizData.questions[currentQ].correct;
     setAnswerStatus(isCorrect ? "correct" : "wrong");
 
-    posthog.capture("question_answered", {
-      question_index: currentQ + 1,
-      is_correct: isCorrect,
-      question_text: quizData.questions[currentQ].text,
-    });
+    analytics.logAction(
+      "question_answered",
+      {
+        question_index: currentQ + 1,
+        is_correct: isCorrect,
+        question_text: quizData.questions[currentQ].text,
+      },
+      currentQ + 1
+    );
 
     setUserAnswers([
       ...userAnswers,
@@ -184,11 +190,18 @@ export default function BeatTheEditor() {
     localStorage.setItem("newsGameStreak", newStreak);
     localStorage.setItem("lastPlayedWeek", currentWeekKey);
 
-    posthog.capture("game_completed", {
+    const resultMetadata = {
       streak_length: newStreak,
       score: finalScore,
       beat_editor: finalScore > quizData.editorScore,
-    });
+    };
+    if (finalScore > quizData.editorScore) {
+      analytics.logWin({ ...resultMetadata, result: "win" }, roundIndex);
+    } else if (finalScore === quizData.editorScore) {
+      analytics.logLoss({ ...resultMetadata, result: "draw" }, roundIndex);
+    } else {
+      analytics.logLoss({ ...resultMetadata, result: "loss" }, roundIndex);
+    }
 
     if (finalScore > quizData.editorScore) {
       setShowConfetti(true);
@@ -203,7 +216,7 @@ export default function BeatTheEditor() {
     const text = `I beat the editor! ${score}/${quizData.questions.length}\nStreak: ${streak}🔥\n${squares}\nRead more at: collegian.psu.edu`;
     navigator.clipboard.writeText(text);
     alert("Score copied to clipboard!");
-    posthog.capture("clicked_share", { score });
+    analytics.logAction("share_results", { score }, roundIndex);
   };
 
   if (loading)
@@ -263,7 +276,7 @@ export default function BeatTheEditor() {
 
         <button
           onClick={() => {
-            posthog.capture("game_start");
+            analytics.logStart();
             setGameState("playing");
           }}
           className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl shadow-blue-200 shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-2"
@@ -352,12 +365,15 @@ export default function BeatTheEditor() {
                     href={question.articleUrl}
                     target="_top"
                     onClick={() =>
-                      posthog.capture("clicked_article_link", {
+                      analytics.logContentClick(
+                        {
                         article_title: question.articleTitle,
                         destination_url: question.articleUrl,
                         source_question: question.text,
                         context: "wrong_answer_feedback",
-                      })
+                        },
+                        currentQ + 1
+                      )
                     }
                     className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-3 py-2 rounded shadow-sm"
                   >
@@ -450,11 +466,14 @@ export default function BeatTheEditor() {
                       href={q.articleUrl}
                       target="_top"
                       onClick={() =>
-                        posthog.capture("clicked_article_link", {
+                        analytics.logContentClick(
+                          {
                           article_title: q.articleTitle,
                           destination_url: q.articleUrl,
                           source_question: q.text,
-                        })
+                          },
+                          idx + 1
+                        )
                       }
                       className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-blue-50 px-2 py-1 rounded"
                     >
