@@ -55,10 +55,15 @@ export default function TimeMachine() {
   const [guessYear, setGuessYear] = useState(1975);
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const pdfWrapperRef = useRef(null);
   const [pdfWidth, setPdfWidth] = useState(600);
   const analytics = useGameAnalytics("time-machine", pageNumber);
+  const devicePixelRatio =
+    typeof window !== "undefined"
+      ? Math.min(window.devicePixelRatio || 1, 2)
+      : 1;
 
   useEffect(() => {
     // Optional: Initialize PostHog here if you haven't done it in main.jsx
@@ -84,6 +89,7 @@ export default function TimeMachine() {
     setFeedbackMsg(null);
     setTargetDate(getRandomDate());
     setGuessYear(1975);
+    setZoomLevel(1);
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
@@ -166,7 +172,8 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
-    const scaleFactor = pdfWidth / viewport.width;
+    const renderedWidth = pdfWidth * zoomLevel;
+    const scaleFactor = renderedWidth / viewport.width;
 
     textContent.items.forEach((item) => {
       if (item.str.includes(targetYearStr)) {
@@ -195,6 +202,7 @@ export default function TimeMachine() {
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
     : "#";
+  const shouldRenderPdf = pdfUrl && gameState === "playing";
 
   // Helper for tracking external link clicks
   const handleViewFullIssue = () => {
@@ -391,6 +399,42 @@ export default function TimeMachine() {
           className="md:col-span-8 min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
           ref={pdfWrapperRef}
         >
+          <div className="absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-700 shadow-md">
+            <div className="flex items-center gap-3">
+              <span className="font-bold text-slate-800">Zoom</span>
+              <button
+                type="button"
+                onClick={() =>
+                  setZoomLevel((prev) => Math.max(1, prev - 0.25))
+                }
+                className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
+              >
+                -
+              </button>
+              <span className="min-w-[3.5rem] text-center tabular-nums">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setZoomLevel((prev) => Math.min(3, prev + 0.25))
+                }
+                className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
+              >
+                +
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoomLevel(1)}
+                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+              >
+                Reset
+              </button>
+              <span className="hidden text-xs text-slate-500 md:inline">
+                Scroll to pan while zoomed
+              </span>
+            </div>
+          </div>
           {loading && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-100/80 backdrop-blur-sm transition-all">
               <Loader className="animate-spin text-slate-400 mb-3" size={40} />
@@ -402,40 +446,70 @@ export default function TimeMachine() {
             </div>
           )}
 
-          {pdfUrl && (
-            <div className="relative bg-white min-h-[800px] shadow-2xl">
-              <Document
-                file={pdfUrl}
-                onLoadError={handleLoadError}
-                className="flex justify-center"
-                loading={null}
-              >
-                <Page
-                  pageNumber={1}
-                  width={pdfWidth}
-                  onLoadSuccess={onPageLoadSuccess}
-                  renderAnnotationLayer={false}
-                  renderTextLayer={true}
-                  className="shadow-xl"
-                />
-              </Document>
+          {shouldRenderPdf && (
+            <div className="relative bg-white min-h-[800px] shadow-2xl overflow-auto">
+              <div className="relative mx-auto w-fit">
+                <Document
+                  file={pdfUrl}
+                  onLoadError={handleLoadError}
+                  className="flex justify-center"
+                  loading={null}
+                >
+                  <Page
+                    pageNumber={1}
+                    width={pdfWidth * zoomLevel}
+                    onLoadSuccess={onPageLoadSuccess}
+                    devicePixelRatio={devicePixelRatio}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                    renderMode="svg"
+                    className="shadow-xl"
+                  />
+                </Document>
 
-              {redactionBoxes.map((box, i) => (
-                <div
-                  key={i}
-                  style={{
-                    position: "absolute",
-                    left: box.x,
-                    top: box.y,
-                    width: box.w,
-                    height: box.h,
-                    backgroundColor: "#1a1a1a",
-                    zIndex: 20,
-                    pointerEvents: "none",
-                    borderRadius: "2px",
-                  }}
-                />
-              ))}
+                {redactionBoxes.map((box, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: "absolute",
+                      left: box.x,
+                      top: box.y,
+                      width: box.w,
+                      height: box.h,
+                      backgroundColor: "#1a1a1a",
+                      zIndex: 20,
+                      pointerEvents: "none",
+                      borderRadius: "2px",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!shouldRenderPdf && (
+            <div className="flex h-full min-h-[600px] items-center justify-center bg-white/80 text-center text-sm text-slate-500">
+              <div className="max-w-sm space-y-2 px-6 py-8">
+                <p className="text-base font-semibold text-slate-700">
+                  {gameState === "lost"
+                    ? "No more pages available for this issue."
+                    : "PDF is hidden while you review results."}
+                </p>
+                <p>
+                  {gameState === "lost"
+                    ? "Use the Try Again button to start a new issue."
+                    : "Start a new game or view the full issue to keep reading."}
+                </p>
+                <a
+                  href={originalLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={handleViewFullIssue}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-slate-50"
+                >
+                  View Full Issue <ExternalLink size={14} />
+                </a>
+              </div>
             </div>
           )}
         </div>
