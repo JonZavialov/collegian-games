@@ -8,7 +8,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import Confetti from "react-confetti";
-import posthog from "posthog-js";
+import useGameAnalytics from "./hooks/useGameAnalytics";
 
 // CONFIGURATION
 // We use the proxy to get around CORS blocks on the RSS feed
@@ -24,6 +24,8 @@ export default function HeadlineHunter() {
   const [gameState, setGameState] = useState("loading"); // loading, playing, won, lost
   const [score, setScore] = useState(0);
   const [wrongGuesses, setWrongGuesses] = useState([]); // Track IDs of wrong guesses to hide them
+  const roundIndex = score + 1;
+  const analytics = useGameAnalytics("headline-hunter", roundIndex);
 
   // Zoom scales: 8x -> 4x -> 2x -> 1x (Full)
   const ZOOM_SCALES = [8, 4, 2, 1];
@@ -107,10 +109,14 @@ export default function HeadlineHunter() {
       setWrongGuesses([]);
       setGameState("playing");
 
-      // TRACKING
-      posthog.capture("hh_round_start");
+      analytics.logStart({ total_articles: articleList.length }, roundIndex);
+      analytics.logAction(
+        "round_start",
+        { options_count: options.length },
+        roundIndex
+      );
     },
-    [articles]
+    [analytics, articles, roundIndex]
   );
 
   // 3. HANDLE GUESS
@@ -122,7 +128,7 @@ export default function HeadlineHunter() {
       setGameState("won");
       setScore(score + 1);
       setZoomLevel(3); // Show full image
-      posthog.capture("hh_round_won", { score: score + 1 });
+      analytics.logWin({ score: score + 1 }, roundIndex);
     } else {
       // WRONG
       const newWrong = [...wrongGuesses, articleId];
@@ -137,7 +143,7 @@ export default function HeadlineHunter() {
         setZoomLevel(3);
       }
 
-      posthog.capture("hh_guess_wrong");
+      analytics.logAction("guess_wrong", { zoom_level: zoomLevel }, roundIndex);
     }
   };
 
@@ -217,7 +223,12 @@ export default function HeadlineHunter() {
                 target="_blank"
                 rel="noreferrer"
                 className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-2"
-                onClick={() => posthog.capture("hh_read_story")}
+                onClick={() =>
+                  analytics.logContentClick({
+                    headline: round.correct.headline,
+                    url: round.correct.link,
+                  })
+                }
               >
                 Read Story <ExternalLink size={16} />
               </a>

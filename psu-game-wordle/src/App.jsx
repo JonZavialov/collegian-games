@@ -1,54 +1,63 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import posthog from 'posthog-js'
-import useWordle from './hooks/useWordle'
-import Row from './components/Row'
-import Modal from './components/Modal'
-import Keyboard from './components/Keyboard'
-import { loadWordsFromSheet } from './data/words'
-import { getDictionarySet } from './data/dictionary'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useWordle from "./hooks/useWordle";
+import Row from "./components/Row";
+import Modal from "./components/Modal";
+import Keyboard from "./components/Keyboard";
+import { loadWordsFromSheet } from "./data/words";
+import { getDictionarySet } from "./data/dictionary";
+import useGameAnalytics from "./hooks/useGameAnalytics";
 
 function App() {
-  const [solutionObj, setSolutionObj] = useState(null)
-  const [loadError, setLoadError] = useState('')
-  const [resetToken, setResetToken] = useState(0)
+  const [solutionObj, setSolutionObj] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [resetToken, setResetToken] = useState(0);
 
   useEffect(() => {
-    let isMounted = true
-    let pollId = null
+    let isMounted = true;
+    let pollId = null;
 
     const fetchWords = () => {
       loadWordsFromSheet(import.meta.env.VITE_WORDS_SHEET_CSV_URL)
         .then((loadedWords) => {
-          if (!isMounted) return
-          const nextSolution = loadedWords[0]
+          if (!isMounted) return;
+          const nextSolution = loadedWords[0];
           setSolutionObj((prev) => {
             if (!prev || prev.word !== nextSolution.word) {
-              return nextSolution
+              return nextSolution;
             }
-            return prev
-          })
-          setLoadError('')
+            return prev;
+          });
+          setLoadError("");
         })
         .catch((error) => {
-          if (!isMounted) return
-          setLoadError(error.message || 'Failed to load words')
-        })
-    }
+          if (!isMounted) return;
+          setLoadError(error.message || "Failed to load words");
+        });
+    };
 
-    fetchWords()
-    pollId = window.setInterval(fetchWords, 60000)
+    fetchWords();
+    pollId = window.setInterval(fetchWords, 60000);
 
     return () => {
-      isMounted = false
-      if (pollId) window.clearInterval(pollId)
-    }
-  }, [])
+      isMounted = false;
+      if (pollId) window.clearInterval(pollId);
+    };
+  }, []);
 
   if (loadError) {
-    return <div className="min-h-screen flex items-center justify-center text-red-700">{loadError}</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center text-red-700">
+        {loadError}
+      </div>
+    );
   }
 
-  if (!solutionObj) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+  if (!solutionObj)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
 
   return (
     <Game
@@ -58,30 +67,36 @@ function App() {
       articleUrl={solutionObj.articleUrl}
       reset={() => setResetToken((prev) => prev + 1)}
     />
-  )
+  );
 }
 
 // Separate Game component to allow easy resetting by changing the key in App
 function Game({ solution, hint, articleUrl, reset }) {
-  const dictionarySet = useMemo(() => getDictionarySet(solution.length), [solution.length])
-  const hasStartedRef = useRef(false)
-  const hasCompletedRef = useRef(false)
-  const [showHint, setShowHint] = useState(false)
-  const handleGuessCapture = useCallback((payload) => {
-    if (!hasStartedRef.current) {
-      posthog.capture('game_started', { word_length: solution.length })
-      hasStartedRef.current = true
-    }
-    if (!payload.isCorrect) {
-      setShowHint(true)
-    }
-    posthog.capture('guess_submitted', {
-      turn: payload.turn,
-      guess: payload.guess,
-      is_correct: payload.isCorrect,
-      word_length: solution.length,
-    })
-  }, [solution.length])
+  const dictionarySet = useMemo(
+    () => getDictionarySet(solution.length),
+    [solution.length]
+  );
+  const hasCompletedRef = useRef(false);
+  const [roundIndex, setRoundIndex] = useState(1);
+  const { logAction, logContentClick, logLoss, logStart, logWin } =
+    useGameAnalytics("valley-vocab", roundIndex);
+  const handleGuessCapture = useCallback(
+    (payload) => {
+      const roundIndexValue = payload.turn + 1;
+      setRoundIndex(roundIndexValue);
+      logAction(
+        "guess_submitted",
+        {
+          turn: payload.turn,
+          guess: payload.guess,
+          is_correct: payload.isCorrect,
+          word_length: solution.length,
+        },
+        roundIndexValue
+      );
+    },
+    [logAction, solution.length]
+  );
   const {
     currentGuess,
     guesses,
@@ -92,51 +107,72 @@ function Game({ solution, hint, articleUrl, reset }) {
     shakeTick,
     notice,
     usedKeys,
-  } = useWordle(solution, dictionarySet, handleGuessCapture)
-  const [showModal, setShowModal] = useState(false)
+  } = useWordle(solution, dictionarySet, handleGuessCapture);
+  const [showModal, setShowModal] = useState(false);
   const tileSize = useMemo(() => {
-    if (solution.length <= 5) return 56
-    if (solution.length === 6) return 50
-    if (solution.length === 7) return 46
-    if (solution.length === 8) return 42
-    return 38
-  }, [solution.length])
+    if (solution.length <= 5) return 56;
+    if (solution.length === 6) return 50;
+    if (solution.length === 7) return 46;
+    if (solution.length === 8) return 42;
+    return 38;
+  }, [solution.length]);
   const tileFontSize = useMemo(() => {
-    if (solution.length <= 5) return 28
-    if (solution.length <= 7) return 24
-    if (solution.length <= 9) return 22
-    return 20
-  }, [solution.length])
+    if (solution.length <= 5) return 28;
+    if (solution.length <= 7) return 24;
+    if (solution.length <= 9) return 22;
+    return 20;
+  }, [solution.length]);
 
   useEffect(() => {
-    window.addEventListener('keyup', handleKeyup)
+    setRoundIndex(1);
+    logStart({ word_length: solution.length }, 1);
+  }, [logStart, solution.length]);
+
+  useEffect(() => {
+    window.addEventListener("keyup", handleKeyup);
 
     // End game logic
     if (isCorrect || turn > 5) {
       if (!hasCompletedRef.current) {
-        posthog.capture('game_completed', {
+        const metadata = {
           win: isCorrect,
           turns: isCorrect ? turn : 6,
           word_length: solution.length,
-        })
-        hasCompletedRef.current = true
+        };
+        const roundIndexValue = roundIndex;
+        if (isCorrect) {
+          logWin(metadata, roundIndexValue);
+        } else {
+          logLoss(metadata, roundIndexValue);
+        }
+        hasCompletedRef.current = true;
       }
-      setTimeout(() => setShowModal(true), 2000)
-      window.removeEventListener('keyup', handleKeyup)
+      setTimeout(() => setShowModal(true), 2000);
+      window.removeEventListener("keyup", handleKeyup);
     }
 
-    return () => window.removeEventListener('keyup', handleKeyup)
-  }, [handleKeyup, isCorrect, turn])
+    return () => window.removeEventListener("keyup", handleKeyup);
+  }, [
+    handleKeyup,
+    isCorrect,
+    logLoss,
+    logWin,
+    roundIndex,
+    solution.length,
+    turn,
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6">
-      <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue mb-6 sm:mb-8 tracking-tighter">Valley Vocab</h1>
-      
+      <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue mb-6 sm:mb-8 tracking-tighter">
+        Valley Vocab
+      </h1>
+
       <div className="w-full max-w-md overflow-x-auto">
         {showHint && (hint || articleUrl) && (
           <div
             className="mb-4 rounded-xl border border-blue-200 px-4 py-3 shadow-sm"
-            style={{ backgroundColor: 'rgba(23, 112, 223, 0.12)' }}
+            style={{ backgroundColor: "rgba(23, 112, 223, 0.12)" }}
           >
             {hint && (
               <>
@@ -154,6 +190,12 @@ function Game({ solution, hint, articleUrl, reset }) {
                 target="_blank"
                 rel="noreferrer"
                 className="mt-2 inline-flex text-sm font-semibold text-blue-700 underline underline-offset-4"
+                onClick={() =>
+                  logContentClick({
+                    url: articleUrl,
+                    word_length: solution.length,
+                  })
+                }
               >
                 Read the article
               </a>
@@ -178,7 +220,7 @@ function Game({ solution, hint, articleUrl, reset }) {
                 tileSize={tileSize}
                 tileFontSize={tileFontSize}
               />
-            )
+            );
           }
           return (
             <Row
@@ -188,7 +230,7 @@ function Game({ solution, hint, articleUrl, reset }) {
               tileSize={tileSize}
               tileFontSize={tileFontSize}
             />
-          )
+          );
         })}
       </div>
 
@@ -201,10 +243,12 @@ function Game({ solution, hint, articleUrl, reset }) {
           solution={solution}
           articleUrl={articleUrl}
           handleReset={reset}
+          logAction={logAction}
+          logContentClick={logContentClick}
         />
       )}
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
