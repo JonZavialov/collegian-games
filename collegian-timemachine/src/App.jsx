@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import DisclaimerFooter from "./components/DisclaimerFooter";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -49,15 +50,18 @@ export default function TimeMachine() {
   const [gameState, setGameState] = useState("playing");
   const [score, setScore] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
+  const [archiveError, setArchiveError] = useState(null);
+  const [pdfSource, setPdfSource] = useState(null);
 
   // UX State
   const [guessYear, setGuessYear] = useState(1975);
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [isMobile, setIsMobile] = useState(false);
 
   const pdfWrapperRef = useRef(null);
-  const [pdfWidth, setPdfWidth] = useState(600);
+  const pdfObjectUrlRef = useRef(null);
   const analytics = useGameAnalytics("time-machine", pageNumber);
   const devicePixelRatio =
     typeof window !== "undefined"
@@ -70,9 +74,7 @@ export default function TimeMachine() {
 
     startNewGame();
     const updateWidth = () => {
-      if (pdfWrapperRef.current) {
-        setPdfWidth(pdfWrapperRef.current.offsetWidth);
-      }
+      setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener("resize", updateWidth);
     setTimeout(updateWidth, 500);
@@ -85,16 +87,18 @@ export default function TimeMachine() {
     setPageNumber(1);
     setRedactionBoxes([]);
     setRetryCount(0);
+    setArchiveError(null);
     setFeedbackMsg(null);
     setTargetDate(getRandomDate());
     setGuessYear(1975);
     setZoomLevel(1);
+    setPdfSource(null);
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
   }, [analytics]);
 
-  const handleLoadError = () => {
+  const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
       console.log(`No paper found for ${targetDate?.full}. Retrying...`);
       setTargetDate(getRandomDate());
@@ -106,14 +110,14 @@ export default function TimeMachine() {
       // 📊 TRACK: Game Lost (Ran out of pages)
       analytics.logLoss(
         {
-        target_year: targetDate?.year,
-        pages_viewed: pageNumber,
-        score: score,
+          target_year: targetDate?.year,
+          pages_viewed: pageNumber,
+          score: score,
         },
         pageNumber
       );
     }
-  };
+  }, [analytics, pageNumber, score, targetDate?.full, targetDate?.year]);
 
   const handleSubmitGuess = () => {
     if (!targetDate) return;
@@ -171,8 +175,7 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
-    const renderedWidth = pdfWidth * zoomLevel;
-    const scaleFactor = renderedWidth / viewport.width;
+    const scaleFactor = zoomLevel * (isMobile ? 0.6 : 1);
 
     textContent.items.forEach((item) => {
       if (item.str.includes(targetYearStr)) {
@@ -201,7 +204,9 @@ export default function TimeMachine() {
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
     : "#";
-  const shouldRenderPdf = pdfUrl && gameState === "playing";
+  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError;
+  const pageScale = zoomLevel * (isMobile ? 0.6 : 1);
+  const documentKey = `${targetDate?.full ?? "no-date"}-${pageNumber}`;
 
   // Helper for tracking external link clicks
   const handleViewFullIssue = () => {
@@ -216,6 +221,70 @@ export default function TimeMachine() {
       analytics.logAction("page_turn", { page_number: pageNumber }, pageNumber);
     }
   }, [analytics, gameState, pageNumber]);
+
+  useEffect(() => {
+    if (!pdfUrl || gameState !== "playing") {
+      return;
+    }
+
+    const controller = new AbortController();
+    const fetchPdf = async () => {
+      setLoading(true);
+      setArchiveError(null);
+      setPdfSource(null);
+
+      if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+        pdfObjectUrlRef.current = null;
+      }
+
+      try {
+        const response = await fetch(pdfUrl, { signal: controller.signal });
+
+        if (response.status === 403 || response.status === 429) {
+          setArchiveError(
+            "The Archives are currently experiencing high traffic. Please try again later."
+          );
+          setLoading(false);
+          return;
+        }
+
+        if (response.status === 404) {
+          handleLoadError();
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch PDF: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        pdfObjectUrlRef.current = objectUrl;
+        setPdfSource(objectUrl);
+        setLoading(false);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to fetch PDF:", error);
+        setArchiveError(
+          "We couldn't load this issue right now. Please try again."
+        );
+        setLoading(false);
+      }
+    };
+
+    fetchPdf();
+
+    return () => {
+      controller.abort();
+      if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+        pdfObjectUrlRef.current = null;
+      }
+    };
+  }, [gameState, handleLoadError, pdfUrl]);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
@@ -272,6 +341,12 @@ export default function TimeMachine() {
             {feedbackMsg && (
               <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
                 <AlertTriangle size={16} /> {feedbackMsg}
+              </div>
+            )}
+
+            {archiveError && (
+              <div className="mb-4 p-3 bg-amber-100 text-amber-800 text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                <AlertTriangle size={16} /> {archiveError}
               </div>
             )}
 
@@ -449,14 +524,15 @@ export default function TimeMachine() {
             <div className="relative bg-white min-h-[800px] shadow-2xl overflow-auto">
               <div className="relative mx-auto w-fit">
                 <Document
-                  file={pdfUrl}
+                  key={documentKey}
+                  file={pdfSource}
                   onLoadError={handleLoadError}
                   className="flex justify-center"
                   loading={null}
                 >
                   <Page
                     pageNumber={1}
-                    width={pdfWidth * zoomLevel}
+                    scale={pageScale}
                     onLoadSuccess={onPageLoadSuccess}
                     devicePixelRatio={devicePixelRatio}
                     renderAnnotationLayer={false}
@@ -490,12 +566,16 @@ export default function TimeMachine() {
             <div className="flex h-full min-h-[600px] items-center justify-center bg-white/80 text-center text-sm text-slate-500">
               <div className="max-w-sm space-y-2 px-6 py-8">
                 <p className="text-base font-semibold text-slate-700">
-                  {gameState === "lost"
+                  {archiveError
+                    ? "Archives are temporarily unavailable."
+                    : gameState === "lost"
                     ? "No more pages available for this issue."
                     : "PDF is hidden while you review results."}
                 </p>
                 <p>
-                  {gameState === "lost"
+                  {archiveError
+                    ? "Please try again later or visit the full archives for text-based access."
+                    : gameState === "lost"
                     ? "Use the Try Again button to start a new issue."
                     : "Start a new game or view the full issue to keep reading."}
                 </p>
@@ -513,6 +593,7 @@ export default function TimeMachine() {
           )}
         </div>
       </div>
+      <DisclaimerFooter />
     </div>
   );
 }

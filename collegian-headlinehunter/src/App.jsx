@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION
 const RSS_ENDPOINT = "/rss";
@@ -258,6 +259,7 @@ export default function HeadlineHunter() {
           </div>
         )}
       </div>
+      <DisclaimerFooter />
     </div>
   );
 }
