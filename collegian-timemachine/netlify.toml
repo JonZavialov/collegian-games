@@ -1,0 +1,16 @@
+[[redirects]]
+from = "/archive/*"
+to = "https://panewsarchive.psu.edu/:splat"
+status = 200
+force = true
+
+[[redirects]]
+from = "/rss"
+to = "https://www.psucollegian.com/search/?f=rss&l=50&t=article"
+status = 200
+force = true
+
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200

@@ -24,7 +24,6 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
-const CORS_PROXY = "https://corsproxy.io/?";
 
 const getRandomDate = () => {
   const start = new Date(`${START_YEAR}-09-05`);
@@ -196,7 +195,7 @@ export default function TimeMachine() {
   };
 
   const pdfUrl = targetDate
-    ? `${CORS_PROXY}https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${pageNumber}.pdf`
+    ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${pageNumber}.pdf`
     : null;
 
   const originalLink = targetDate
