@@ -55,6 +55,7 @@ export default function TimeMachine() {
   const [guessYear, setGuessYear] = useState(1975);
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const pdfWrapperRef = useRef(null);
   const [pdfWidth, setPdfWidth] = useState(600);
@@ -88,6 +89,7 @@ export default function TimeMachine() {
     setFeedbackMsg(null);
     setTargetDate(getRandomDate());
     setGuessYear(1975);
+    setZoomLevel(1);
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
@@ -395,6 +397,30 @@ export default function TimeMachine() {
           className="md:col-span-8 min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
           ref={pdfWrapperRef}
         >
+          <div className="absolute right-4 top-4 z-40 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+            <span>Zoom</span>
+            <button
+              type="button"
+              onClick={() =>
+                setZoomLevel((prev) => Math.max(1, prev - 0.25))
+              }
+              className="h-6 w-6 rounded-full border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-100"
+            >
+              -
+            </button>
+            <span className="min-w-[3rem] text-center tabular-nums">
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setZoomLevel((prev) => Math.min(3, prev + 0.25))
+              }
+              className="h-6 w-6 rounded-full border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-100"
+            >
+              +
+            </button>
+          </div>
           {loading && (
             <div className="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-100/80 backdrop-blur-sm transition-all">
               <Loader className="animate-spin text-slate-400 mb-3" size={40} />
@@ -422,6 +448,7 @@ export default function TimeMachine() {
                   renderAnnotationLayer={false}
                   renderTextLayer={false}
                   renderMode="svg"
+                  scale={zoomLevel}
                   className="shadow-xl"
                 />
               </Document>
