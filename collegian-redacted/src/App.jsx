@@ -458,7 +458,7 @@ export default function Redacted() {
         </div>
       </div>
 
-      {/* INPUT AREA */}
+      {/* INPUT AREA (Sticky Bottom) */}
       <div
         className={`fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 transition-transform duration-300 z-50 ${
           gameState !== "playing" ? "translate-y-full" : ""
@@ -496,11 +496,16 @@ export default function Redacted() {
               {words.filter((w) => w.hidden).length} Words Left
             </span>
 
-            {/* FIX 3: Added type='button' and increased z-index/click area */}
+            {/* FIX: Added onTouchEnd and styling for mobile iframe touches */}
             <button
               type="button"
               onClick={handleGiveUp}
-              className="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors uppercase tracking-wider p-2"
+              onTouchEnd={(e) => {
+                e.preventDefault(); // Stop ghost clicks/scrolls
+                handleGiveUp();
+              }}
+              style={{ touchAction: "manipulation" }} // Disables zoom delay
+              className="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors uppercase tracking-wider p-3 -mr-3 cursor-pointer select-none active:scale-95"
             >
               <Flag size={12} /> Reveal Answer
             </button>
