@@ -4,8 +4,8 @@ import {
   Trophy,
   ExternalLink,
   ArrowRight,
-  XCircle,
-  AlertCircle,
+  X,
+  Info,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
@@ -22,8 +22,11 @@ export default function HeadlineHunter() {
   const [gameState, setGameState] = useState("loading"); // loading, playing, won, lost
   const [score, setScore] = useState(0);
   const [wrongGuesses, setWrongGuesses] = useState([]); // Track IDs of wrong guesses to hide them
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const roundIndex = score + 1;
   const analytics = useGameAnalytics("headline-hunter", roundIndex);
+  const tutorialStorageKey = "headlinehunter_tutorial_dismissed";
 
   // Zoom scales: 8x -> 4x -> 2x -> 1x (Full)
   const ZOOM_SCALES = [8, 4, 2, 1];
@@ -75,6 +78,25 @@ export default function HeadlineHunter() {
 
     fetchNews();
   }, []);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
 
   // 2. SETUP NEW ROUND
   const setupRound = useCallback(
@@ -143,25 +165,112 @@ export default function HeadlineHunter() {
     }
   };
 
+  const tutorialModal = showTutorial ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500 p-6 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
+                Quick Tutorial
+              </p>
+              <h2 className="text-2xl font-black">
+                How to play Headline Hunter
+              </h2>
+              <p className="mt-2 text-sm text-blue-100">
+                Zoomed-in photo puzzles. Find the matching headline before the
+                image zooms out.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+              aria-label="Close tutorial"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="space-y-5 p-6">
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                1
+              </span>
+              <p>
+                Study the zoomed-in photo and read each headline choice
+                carefully.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                2
+              </span>
+              <p>
+                Pick the headline that best matches the image. Wrong guesses
+                zoom the photo out.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                3
+              </span>
+              <p>
+                Score points by finding the right headline before the full image
+                is revealed.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={dontShowAgain}
+                onChange={(event) => setDontShowAgain(event.target.checked)}
+                className="h-4 w-4 accent-blue-600"
+              />
+              Don&apos;t show again
+            </label>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
-        <Loader className="animate-spin text-blue-600 mb-4" size={48} />
-        <p className="text-slate-500 font-bold">Loading Headlines...</p>
-      </div>
+      <>
+        <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
+          <Loader className="animate-spin text-blue-600 mb-4" size={48} />
+          <p className="text-slate-500 font-bold">Loading Headlines...</p>
+        </div>
+        {tutorialModal}
+      </>
     );
   }
 
   if (articles.length < 4) {
     return (
-      <div className="p-10 text-center">
-        Not enough articles with images found.
-      </div>
+      <>
+        <div className="p-10 text-center">
+          Not enough articles with images found.
+        </div>
+        {tutorialModal}
+      </>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+      {tutorialModal}
       {/* HEADER */}
       <div className="max-w-2xl mx-auto mb-6 flex justify-between items-center">
         <div>
@@ -172,8 +281,17 @@ export default function HeadlineHunter() {
             Can you identify the story from the detail?
           </p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-          <Trophy size={18} /> {score}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openTutorial}
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+          >
+            <Info size={16} /> How to play
+          </button>
+          <div className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
+            <Trophy size={18} /> {score}
+          </div>
         </div>
       </div>
 

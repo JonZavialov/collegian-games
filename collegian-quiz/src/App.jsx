@@ -9,6 +9,8 @@ import {
   Loader,
   Flame,
   XCircle,
+  X,
+  Info,
 } from "lucide-react";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 
@@ -45,6 +47,9 @@ export default function BeatTheEditor() {
   const [selectedOption, setSelectedOption] = useState(null);
   const [answerStatus, setAnswerStatus] = useState(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const tutorialStorageKey = "beat-the-editor_tutorial_dismissed";
 
   // 1. FETCH DATA & HANDLE STREAKS
   useEffect(() => {
@@ -120,6 +125,115 @@ export default function BeatTheEditor() {
       },
     });
   }, []);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
+
+  const tutorialModal = showTutorial ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 p-6 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
+                Quick Tutorial
+              </p>
+              <h2 className="text-2xl font-black">
+                How to beat the editor
+              </h2>
+              <p className="mt-2 text-sm text-blue-100">
+                Answer weekly news questions and outscore the editor&apos;s
+                benchmark.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+              aria-label="Close tutorial"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="space-y-5 p-6">
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                1
+              </span>
+              <p>
+                Read each question and pick the best answer from the four
+                choices.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                2
+              </span>
+              <p>
+                Correct answers give you points and move you forward. Missed
+                answers reveal a quick explainer.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                3
+              </span>
+              <p>
+                At the end, compare your score to the editor&apos;s score to
+                see if you won.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={dontShowAgain}
+                onChange={(event) => setDontShowAgain(event.target.checked)}
+                className="h-4 w-4 accent-blue-600"
+              />
+              Don&apos;t show again
+            </label>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+            >
+              Let&apos;s play
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const tutorialButton = (
+    <button
+      type="button"
+      onClick={openTutorial}
+      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+    >
+      <Info size={14} /> How to play
+    </button>
+  );
 
   // 2. HANDLE NEXT QUESTION (Manual or Auto)
   const advanceGame = (finalScore) => {
@@ -221,15 +335,20 @@ export default function BeatTheEditor() {
 
   if (loading)
     return (
-      <div className="flex justify-center items-center h-64">
-        <Loader className="animate-spin text-blue-600" />
-      </div>
+      <>
+        <div className="flex justify-center items-center h-64">
+          <Loader className="animate-spin text-blue-600" />
+        </div>
+        {tutorialModal}
+      </>
     );
 
   // --- VIEW 1: INTRO ---
   if (gameState === "intro") {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans">
+      <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans relative">
+        {tutorialModal}
+        <div className="absolute top-4 right-4">{tutorialButton}</div>
         {streak > 0 && (
           <div className="mb-4 flex items-center gap-1 text-orange-500 font-bold bg-orange-100 px-3 py-1 rounded-full text-xs uppercase tracking-wide">
             <Flame size={14} /> {streak} Game Streak
@@ -297,6 +416,8 @@ export default function BeatTheEditor() {
 
     return (
       <div className="min-h-[400px] bg-white p-6 rounded-xl max-w-md mx-auto relative">
+        {tutorialModal}
+        <div className="absolute top-4 right-4">{tutorialButton}</div>
         <div className="absolute top-0 left-0 h-1.5 bg-slate-100 w-full">
           <div
             className="h-full bg-blue-600 transition-all duration-300"
@@ -402,6 +523,8 @@ export default function BeatTheEditor() {
 
     return (
       <div className="bg-slate-50 p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
+        {tutorialModal}
+        <div className="absolute top-4 right-4 z-10">{tutorialButton}</div>
         {showConfetti && (
           <Confetti
             width={window.innerWidth}

@@ -7,6 +7,8 @@ import {
   ExternalLink,
   AlertCircle,
   Flag,
+  Info,
+  X,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
@@ -104,6 +106,9 @@ export default function Redacted() {
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState("loading"); // loading, playing, won, lost
   const [shake, setShake] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
+  const tutorialStorageKey = "redacted_tutorial_dismissed";
 
   // Analytics & Refs
   const roundIndex = score + 1;
@@ -167,6 +172,99 @@ export default function Redacted() {
 
     fetchNews();
   }, []);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
+
+  const tutorialModal = showTutorial ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-800 p-6 text-white">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
+                Quick Tutorial
+              </p>
+              <h2 className="text-2xl font-black">How to play Redacted</h2>
+              <p className="mt-2 text-sm text-slate-200">
+                Restore hidden words in a headline before you run out of lives.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+              aria-label="Close tutorial"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <div className="space-y-5 p-6">
+          <div className="grid gap-4 text-sm text-slate-700">
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                1
+              </span>
+              <p>
+                Type a missing word and press enter to reveal matching blanks.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                2
+              </span>
+              <p>
+                Each wrong guess costs a heart. Reveal every hidden word to win.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                3
+              </span>
+              <p>
+                If you&apos;re stuck, tap Reveal Answer to see the headline.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+            <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+              <input
+                type="checkbox"
+                checked={dontShowAgain}
+                onChange={(event) => setDontShowAgain(event.target.checked)}
+                className="h-4 w-4 accent-blue-600"
+              />
+              Don&apos;t show again
+            </label>
+            <button
+              type="button"
+              onClick={closeTutorial}
+              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+            >
+              Let&apos;s go
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   // --- 2. GAME LOGIC ---
   const setupRound = (articleList = articles) => {
@@ -305,34 +403,43 @@ export default function Redacted() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center font-sans">
-        <Loader className="animate-spin text-blue-600 mb-4" size={48} />
-        <p className="text-slate-500 font-bold">Loading Headlines...</p>
-      </div>
+      <>
+        <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center font-sans">
+          <Loader className="animate-spin text-blue-600 mb-4" size={48} />
+          <p className="text-slate-500 font-bold">Loading Headlines...</p>
+        </div>
+        {tutorialModal}
+      </>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
-          <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Unavailable</h2>
-          <p className="text-slate-500 mb-6">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold"
-          >
-            Retry
-          </button>
+      <>
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+          <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
+            <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              Unavailable
+            </h2>
+            <p className="text-slate-500 mb-6">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold"
+            >
+              Retry
+            </button>
+          </div>
         </div>
-      </div>
+        {tutorialModal}
+      </>
     );
   }
 
   return (
     // FIX 2: Reduced bottom padding from pb-32 to pb-24 to remove excessive gap
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-24">
+      {tutorialModal}
       {/* HEADER */}
       <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
@@ -344,7 +451,14 @@ export default function Redacted() {
           </p>
         </div>
 
-        <div className="flex gap-2 md:gap-3">
+        <div className="flex gap-2 md:gap-3 items-center">
+          <button
+            type="button"
+            onClick={openTutorial}
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
+          >
+            <Info size={14} /> How to play
+          </button>
           <div
             className={`bg-white px-3 py-1.5 rounded-full shadow-sm font-bold border flex items-center gap-1.5 transition-colors ${
               lives === 0
