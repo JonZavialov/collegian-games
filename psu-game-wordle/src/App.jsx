@@ -79,8 +79,11 @@ function Game({ solution, hint, articleUrl, reset }) {
   const hasCompletedRef = useRef(false);
   const [roundIndex, setRoundIndex] = useState(1);
   const [showHint, setShowHint] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
   const { logAction, logContentClick, logLoss, logStart, logWin } =
     useGameAnalytics("valley-vocab", roundIndex);
+  const tutorialStorageKey = "valley-vocab_tutorial_dismissed";
   const handleGuessCapture = useCallback(
     (payload) => {
       const roundIndexValue = payload.turn + 1;
@@ -133,6 +136,25 @@ function Game({ solution, hint, articleUrl, reset }) {
   }, [logStart, solution.length]);
 
   useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
+
+  useEffect(() => {
     window.addEventListener("keyup", handleKeyup);
 
     // End game logic
@@ -168,9 +190,92 @@ function Game({ solution, hint, articleUrl, reset }) {
 
   return (
     <div className="min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6">
-      <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue mb-6 sm:mb-8 tracking-tighter">
-        Valley Vocab
-      </h1>
+      {showTutorial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-6 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
+                    Quick Tutorial
+                  </p>
+                  <h2 className="text-2xl font-black">How to play Valley Vocab</h2>
+                  <p className="mt-2 text-sm text-blue-100">
+                    Guess the Penn State themed word in six tries or fewer.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeTutorial}
+                  className="rounded-full bg-white/10 px-3 py-1 text-lg font-semibold text-white/80 transition hover:bg-white/20 hover:text-white"
+                  aria-label="Close tutorial"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-4 text-sm text-slate-700">
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                    1
+                  </span>
+                  <p>Type a word and press enter. Letters will change color.</p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                    2
+                  </span>
+                  <p>
+                    Green is the right letter in the right spot. Yellow means
+                    the letter is in the word but misplaced.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                    3
+                  </span>
+                  <p>
+                    Keep guessing until you solve it or run out of attempts. A
+                    hint appears after a miss.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={dontShowAgain}
+                    onChange={(event) => setDontShowAgain(event.target.checked)}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Don&apos;t show again
+                </label>
+                <button
+                  type="button"
+                  onClick={closeTutorial}
+                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+                >
+                  Let&apos;s play
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-md flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue tracking-tighter">
+          Valley Vocab
+        </h1>
+        <button
+          type="button"
+          onClick={openTutorial}
+          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+        >
+          How to play
+        </button>
+      </div>
 
       <div className="w-full max-w-md overflow-x-auto">
         {showHint && (hint || articleUrl) && (
