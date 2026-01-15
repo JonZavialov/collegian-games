@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "an-array-of-english-words": "^2.0.0",
+    "lucide-react": "^0.562.0",
     "papaparse": "^5.5.3",
     "posthog-js": "^1.268.0",
     "react": "^19.2.0",
