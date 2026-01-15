@@ -47,14 +47,6 @@ const DisclaimerFooter = () => {
           <p className="mt-2">
             © {new Date().getFullYear()} The Daily Collegian.
           </p>
-          <a
-            href="https://www.psucollegian.com/site/accessibility.html"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-block underline decoration-slate-200 underline-offset-2 transition-colors hover:text-slate-600"
-          >
-            Accessibility Statement
-          </a>
         </div>
       </div>
     </footer>
