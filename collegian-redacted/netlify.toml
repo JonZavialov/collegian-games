@@ -1,16 +1,24 @@
-[[redirects]]
-from = "/archive/*"
-to = "https://panewsarchive.psu.edu/:splat"
-status = 200
-force = true
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"  # Tell Netlify where the function lives
 
+# 1. RSS Proxy -> Points to our Caching Function
 [[redirects]]
-from = "/rss"
-to = "https://www.psucollegian.com/search/?f=rss&l=50&t=article"
-status = 200
-force = true
+  from = "/rss"
+  to = "/.netlify/functions/rss"   # The internal path to the function
+  status = 200
+  force = true
 
+# 2. Archive Proxy (Keep this as is, usually PDFs are less rate-limited)
 [[redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
+  from = "/archive/*"
+  to = "https://panewsarchive.psu.edu/:splat"
+  status = 200
+  force = true
+
+# 3. SPA Fallback
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
