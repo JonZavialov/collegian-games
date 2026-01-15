@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION
 const RSS_ENDPOINT = "/rss";
@@ -571,6 +572,8 @@ export default function Redacted() {
           )}
         </div>
       </div>
+
+      <DisclaimerFooter />
 
       {/* INPUT AREA (Sticky Bottom) */}
       <div
