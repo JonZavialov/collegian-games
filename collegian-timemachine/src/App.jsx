@@ -8,6 +8,8 @@ import {
   ArrowRight,
   ExternalLink,
   AlertTriangle,
+  Info,
+  X,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
@@ -60,10 +62,13 @@ export default function TimeMachine() {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
   const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [dontShowAgain, setDontShowAgain] = useState(false);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
   const analytics = useGameAnalytics("time-machine", pageNumber);
+  const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const devicePixelRatio =
     typeof window !== "undefined"
       ? Math.min(window.devicePixelRatio || 1, 2)
@@ -81,6 +86,25 @@ export default function TimeMachine() {
     setTimeout(updateWidth, 500);
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
 
   useEffect(() => {
     if (!pdfWrapperRef.current) {
@@ -312,6 +336,85 @@ export default function TimeMachine() {
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+      {showTutorial && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-800 to-indigo-700 p-6 text-white">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
+                    Quick Tutorial
+                  </p>
+                  <h2 className="text-2xl font-black">
+                    How to play Time Machine
+                  </h2>
+                  <p className="mt-2 text-sm text-blue-100">
+                    Scan historical front pages and guess the year within two
+                    years.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeTutorial}
+                  className="rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+                  aria-label="Close tutorial"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <div className="space-y-5 p-6">
+              <div className="grid gap-4 text-sm text-slate-700">
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                    1
+                  </span>
+                  <p>
+                    Explore the newspaper page and look for clues like ads,
+                    typography, and headlines.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                    2
+                  </span>
+                  <p>
+                    Slide the year picker to your best guess and lock it in.
+                    You win if you&apos;re within ±2 years.
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                    3
+                  </span>
+                  <p>
+                    Missed it? You can turn the page for more clues before you
+                    run out of pages.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={dontShowAgain}
+                    onChange={(event) => setDontShowAgain(event.target.checked)}
+                    className="h-4 w-4 accent-blue-600"
+                  />
+                  Don&apos;t show again
+                </label>
+                <button
+                  type="button"
+                  onClick={closeTutorial}
+                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+                >
+                  Start time travel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <style>{`
         @keyframes shake {
           0% { transform: translateX(0); }
@@ -336,8 +439,17 @@ export default function TimeMachine() {
             Drag the slider to guess the year. Close counts (±2 years).
           </p>
         </div>
-        <div className="bg-white px-5 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-          <Trophy size={18} /> Streak: {score}
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={openTutorial}
+            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+          >
+            <Info size={14} /> How to play
+          </button>
+          <div className="bg-white px-5 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
+            <Trophy size={18} /> Streak: {score}
+          </div>
         </div>
       </div>
 
