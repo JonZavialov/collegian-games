@@ -3,6 +3,7 @@ import useWordle from "./hooks/useWordle";
 import Row from "./components/Row";
 import Modal from "./components/Modal";
 import Keyboard from "./components/Keyboard";
+import DisclaimerFooter from "./components/DisclaimerFooter";
 import { loadWordsFromSheet } from "./data/words";
 import { getDictionarySet } from "./data/dictionary";
 import useGameAnalytics from "./hooks/useGameAnalytics";
@@ -189,7 +190,8 @@ function Game({ solution, hint, articleUrl, reset }) {
   ]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6 flex-1">
       {showTutorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -356,6 +358,8 @@ function Game({ solution, hint, articleUrl, reset }) {
           logContentClick={logContentClick}
         />
       )}
+      </div>
+      <DisclaimerFooter />
     </div>
   );
 }
