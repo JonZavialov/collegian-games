@@ -44,17 +44,21 @@ const DisclaimerFooter = () => {
             <br className="hidden sm:block" />
             Game results are for entertainment purposes only.
           </p>
+          <p className="mt-2">© {new Date().getFullYear()} The Daily Collegian.</p>
           <p className="mt-2">
-            © {new Date().getFullYear()} The Daily Collegian.
+            Accessibility Note: This game relies on visual analysis of historical
+            archives. For accessible text-based news, please visit the full
+            archives at{" "}
+            <a
+              className="font-semibold text-blue-700 hover:underline"
+              href="https://panewsarchive.psu.edu/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              https://panewsarchive.psu.edu/
+            </a>
+            .
           </p>
-          <a
-            href="https://www.psucollegian.com/site/accessibility.html"
-            target="_blank"
-            rel="noreferrer"
-            className="mt-2 inline-block underline decoration-slate-200 underline-offset-2 transition-colors hover:text-slate-600"
-          >
-            Accessibility Statement
-          </a>
         </div>
       </div>
     </footer>
