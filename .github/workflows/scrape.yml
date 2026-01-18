@@ -1,30 +1,35 @@
-name: Update Game Data
+name: Refresh Article Data
 on:
   schedule:
-    - cron: '0 */6 * * *' # Every 6 hours
-  workflow_dispatch:
+    # Runs at 23 minutes past the hour every 6 hours
+    # (Avoids the 00:00 peak when everyone else is scraping)
+    - cron: "23 */6 * * *"
+  workflow_dispatch: # Allows you to trigger it manually from the UI
 
 jobs:
-  scrape_and_deploy:
+  scrape_and_push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Essential for pushing the JSON back to the repo
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Install deps
+          python-version: "3.10"
+
+      - name: Install Dependencies
         run: pip install -r requirements.txt
+
       - name: Run Scraper
         run: python scraper.py
-        env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      - name: Deploy to GitHub Pages
+
+      - name: Commit and Push
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
+          git config --global user.name "NewsBot"
+          git config --global user.email "bot@psucollegian.com"
           git add articles.json
-          git commit -m "Automated article update" || exit 0
+          git commit -m "Automated news update [skip ci]" || exit 0
           git push
