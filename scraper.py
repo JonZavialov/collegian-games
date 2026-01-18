@@ -16,12 +16,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
 
 def get_db_connection():
+    # Explicitly using host/port to avoid Unix socket errors in GitHub Actions
     return psycopg2.connect(
         host=os.getenv("DB_HOST"),
         dbname=os.getenv("DB_NAME"),
         user=os.getenv("DB_USER"),
         password=os.getenv("DB_PASSWORD"),
-        port=os.getenv("DB_PORT", "5432")
+        port=os.getenv("DB_PORT", "5432"),
+        connect_timeout=10
     )
 
 def clean_xml(raw_bytes):
@@ -38,38 +40,48 @@ def scrape():
         url = f"https://www.psucollegian.com/search/?f=rss&t=article&l={limit}&o={offset}&s=start_time&sd=desc"
         logging.info(f"Fetching batch: offset {offset}...")
         
-        resp = requests.get(url, headers=headers, timeout=30)
-        if resp.status_code != 200: break
+        try:
+            resp = requests.get(url, headers=headers, timeout=30)
+            if resp.status_code != 200: break
 
-        soup = BeautifulSoup(clean_xml(resp.content), "xml") 
-        items = soup.find_all("item")
-        if not items: break
+            soup = BeautifulSoup(clean_xml(resp.content), "xml") 
+            items = soup.find_all("item")
+            if not items: break
 
-        new_in_batch = 0
-        for item in items:
-            try:
-                pdate = datetime.strptime(item.find("pubDate").text.strip(), "%a, %d %b %Y %H:%M:%S %z")
-                if pdate < cutoff: continue
-                
-                link = item.find("link").text.strip()
-                guid = link.split('_')[-1].replace('.html', '')
+            new_in_batch = 0
+            for item in items:
+                try:
+                    pdate = datetime.strptime(item.find("pubDate").text.strip(), "%a, %d %b %Y %H:%M:%S %z")
+                    if pdate < cutoff: continue
+                    
+                    link = item.find("link").text.strip()
+                    guid = link.split('_')[-1].replace('.html', '')
 
-                if guid not in all_articles:
-                    author_tag = item.find("dc:creator") or item.find("creator")
-                    all_articles[guid] = {
-                        "guid": guid,
-                        "title": item.find("title").text.strip(),
-                        "author": author_tag.text.strip() if author_tag else "The Daily Collegian",
-                        "description": item.find("description").text.strip(),
-                        "pub_date": pdate.isoformat(),
-                        "link": link
-                    }
-                    new_in_batch += 1
-            except: continue
+                    if guid not in all_articles:
+                        author_tag = item.find("dc:creator") or item.find("creator")
+                        
+                        # --- IMAGE EXTRACTION ---
+                        enclosure = item.find("enclosure")
+                        image_url = enclosure.get("url") if enclosure else None
 
-        if new_in_batch == 0 and len(items) > 0: break
-        offset += limit
-        time.sleep(2)
+                        all_articles[guid] = {
+                            "guid": guid,
+                            "title": item.find("title").text.strip(),
+                            "author": author_tag.text.strip() if author_tag else "The Daily Collegian",
+                            "description": item.find("description").text.strip(),
+                            "pub_date": pdate.isoformat(),
+                            "link": link,
+                            "image_url": image_url
+                        }
+                        new_in_batch += 1
+                except: continue
+
+            if new_in_batch == 0 and len(items) > 0: break
+            offset += limit
+            time.sleep(2)
+        except Exception as e:
+            logging.error(f"Request error: {e}")
+            break
 
     # --- DATABASE INSERTION ---
     conn = None
@@ -80,13 +92,22 @@ def scrape():
         
         for art in all_articles.values():
             cur.execute("""
-                INSERT INTO articles (guid, title, content, author, pub_date, url, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, now())
+                INSERT INTO articles (guid, title, content, author, pub_date, url, image_url, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, now())
                 ON CONFLICT (guid) DO UPDATE SET
                     title = EXCLUDED.title,
                     content = EXCLUDED.content,
+                    image_url = EXCLUDED.image_url,
                     updated_at = now();
-            """, (art['guid'], art['title'], art['description'], art['author'], art['pub_date'], art['link']))
+            """, (
+                art['guid'], 
+                art['title'], 
+                art['description'], 
+                art['author'], 
+                art['pub_date'], 
+                art['link'],
+                art['image_url']
+            ))
         
         conn.commit()
         cur.close()
