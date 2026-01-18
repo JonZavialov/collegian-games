@@ -1,109 +1,104 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 import requests
 import re
 import time
 import logging
-import sys
+import psycopg2
 from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
-logging.basicConfig(
-    level=logging.INFO, 
-    format="%(asctime)s %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
+# Load local .env for local testing, GH Actions uses Secrets
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+
+def get_db_connection():
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT", "5432")
+    )
 
 def clean_xml(raw_bytes):
-    """Strips control characters that break XML parsers."""
     text = raw_bytes.decode('utf-8', errors='ignore')
     return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
 
 def scrape():
     all_articles = {}
-    # Capturing last 14 days to ensure we never miss an update
     cutoff = datetime.now(timezone.utc) - timedelta(days=14)
-    limit = 100
-    offset = 0
+    limit, offset = 100, 0
     headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
 
     while True:
         url = f"https://www.psucollegian.com/search/?f=rss&t=article&l={limit}&o={offset}&s=start_time&sd=desc"
         logging.info(f"Fetching batch: offset {offset}...")
         
-        try:
-            resp = requests.get(url, headers=headers, timeout=30)
-            if resp.status_code != 200:
-                logging.error(f"Failed with status {resp.status_code}")
-                break
+        resp = requests.get(url, headers=headers, timeout=30)
+        if resp.status_code != 200: break
 
-            # Parse with 'xml' features for speed and namespace support
-            soup = BeautifulSoup(clean_xml(resp.content), "xml") 
-            items = soup.find_all("item")
-            
-            if not items:
-                logging.info("No more articles found in feed.")
-                break
+        soup = BeautifulSoup(clean_xml(resp.content), "xml") 
+        items = soup.find_all("item")
+        if not items: break
 
-            new_in_batch = 0
-            for item in items:
-                try:
-                    # Parse Date
-                    pdate_str = item.find("pubDate").text.strip()
-                    pdate = datetime.strptime(pdate_str, "%a, %d %b %Y %H:%M:%S %z")
-                    
-                    if pdate < cutoff:
-                        continue
-                    
-                    # Extract Data
-                    link = item.find("link").text.strip()
-                    # Extract unique UUID from the filename
-                    guid = link.split('_')[-1].replace('.html', '')
-
-                    if guid not in all_articles:
-                        # Handle namespaces for Author
-                        author_tag = item.find("dc:creator") or item.find("creator")
-                        author = author_tag.text.strip() if author_tag else "The Daily Collegian"
-
-                        all_articles[guid] = {
-                            "guid": guid,
-                            "title": item.find("title").text.strip(),
-                            "author": author,
-                            "description": item.find("description").text.strip(),
-                            "pub_date": pdate.isoformat(),
-                            "link": link
-                        }
-                        new_in_batch += 1
-                except Exception:
-                    continue
-
-            logging.info(f"  Processed batch. Added {new_in_batch} articles.")
-            
-            # If we found 0 new articles in a full batch, we've hit the date cutoff
-            if new_in_batch == 0 and len(items) > 0:
-                logging.info("Reached the 14-day limit. Stopping.")
-                break
+        new_in_batch = 0
+        for item in items:
+            try:
+                pdate = datetime.strptime(item.find("pubDate").text.strip(), "%a, %d %b %Y %H:%M:%S %z")
+                if pdate < cutoff: continue
                 
-            offset += limit
-            time.sleep(2) # Respectful delay to stay in Tier 3
+                link = item.find("link").text.strip()
+                guid = link.split('_')[-1].replace('.html', '')
 
-        except Exception as e:
-            logging.error(f"Critical error during scrape: {e}")
-            break
+                if guid not in all_articles:
+                    author_tag = item.find("dc:creator") or item.find("creator")
+                    all_articles[guid] = {
+                        "guid": guid,
+                        "title": item.find("title").text.strip(),
+                        "author": author_tag.text.strip() if author_tag else "The Daily Collegian",
+                        "description": item.find("description").text.strip(),
+                        "pub_date": pdate.isoformat(),
+                        "link": link
+                    }
+                    new_in_batch += 1
+            except: continue
 
-    # Final Save
-    output = {
-        "metadata": {
-            "last_updated": datetime.now(timezone.utc).isoformat(),
-            "total_articles": len(all_articles)
-        },
-        "articles": list(all_articles.values())
-    }
-    
+        if new_in_batch == 0 and len(items) > 0: break
+        offset += limit
+        time.sleep(2)
+
+    # --- DATABASE INSERTION ---
+    conn = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        logging.info(f"Syncing {len(all_articles)} articles to Postgres...")
+        
+        for art in all_articles.values():
+            cur.execute("""
+                INSERT INTO articles (guid, title, content, author, pub_date, url, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (guid) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    content = EXCLUDED.content,
+                    updated_at = now();
+            """, (art['guid'], art['title'], art['description'], art['author'], art['pub_date'], art['link']))
+        
+        conn.commit()
+        cur.close()
+        logging.info("Database sync complete.")
+    except Exception as e:
+        logging.error(f"Database error: {e}")
+    finally:
+        if conn: conn.close()
+
+    # Save JSON as backup
     with open("articles.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
-    
-    logging.info(f"DONE. Saved {len(all_articles)} unique articles.")
+        json.dump(list(all_articles.values()), f, indent=2)
 
 if __name__ == "__main__":
     scrape()
