@@ -39,15 +39,47 @@ def clean_text(html: str) -> str:
 
 def fetch_rss_page(offset):
     url = RSS_TEMPLATE.format(offset=offset)
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+    
+    # Create a session to persist cookies (some servers require this)
+    session = requests.Session()
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/xml,application/xml,application/xhtml+xml,text/html;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1', # Do Not Track
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0',
+    }
+    
     try:
-        resp = requests.get(url, headers=headers, timeout=30)
-        if resp.status_code != 200: return None
+        logging.info(f"Requesting offset {offset}...")
+        resp = session.get(url, headers=headers, timeout=30)
+        
+        # Log the status and a snippet of content for debugging in GitHub Actions
+        logging.info(f"Status: {resp.status_code}")
+        
+        if resp.status_code == 429:
+            logging.error("Rate Limited (429). The server has flagged this IP.")
+            return None
+            
+        if not resp.content or b"<rss" not in resp.content.lower():
+            logging.warning("Response does not look like RSS XML.")
+            # This logs the first 200 chars so you can see if it's a 'Access Denied' HTML page
+            logging.info(f"Content Preview: {resp.text[:200]}")
+            return None
+            
         return resp.content
     except Exception as e:
         logging.error(f"Fetch error: {e}")
         return None
-
+        
 def get_db_connection():
     try:
         return psycopg2.connect(
