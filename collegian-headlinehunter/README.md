@@ -2,7 +2,7 @@
 
 **Headline Hunter** is a fully automated visual puzzle game built for _The Daily Collegian_.
 
-**The Premise:** The game pulls live imagery from the newspaper's RSS feed, zooms in 8x on a specific detail, and challenges the user to identify which headline belongs to the photo.
+**The Premise:** The game pulls live imagery from the Daily Collegian article database (synced from the RSS feed), zooms in 8x on a specific detail, and challenges the user to identify which headline belongs to the photo.
 
 **The Goal:** Gamify news consumption and drive traffic to recent articles without requiring manual curation from editors.
 
@@ -10,11 +10,13 @@
 
 ## 🚀 How It Works
 
-1.  **Automated Fetching:**
-    The app scrapes the _Daily Collegian_ RSS feed (`psucollegian.com`) in real-time to get the latest 50 articles.
-2.  **High-Res Hacking:**
-    It parses the thumbnail URLs (e.g., `image.jpg?resize=300`) and programmatically strips the query parameters to reveal the **original high-resolution source image**.
-3.  **The Game Loop:**
+1.  **Database Sync (RSS → Postgres):**
+    A scheduled scraper ingests the _Daily Collegian_ RSS feed into our Postgres database. This switch avoids RSS 429 rate-limit errors while still keeping the content fresh.
+2.  **App Fetch (Postgres → Netlify Function → Client):**
+    The game calls `/.netlify/functions/get-articles`, which reads recent articles from the database and returns clean JSON (no XML parsing or CORS issues in the browser).
+3.  **High-Res Hacking:**
+    The client strips thumbnail query parameters (e.g., `image.jpg?resize=300`) to reveal the **original high-resolution source image**.
+4.  **The Game Loop:**
     - **Round 1:** Shows the image at **8x zoom** (Extreme Close-up).
     - **Wrong Guess:** Zooms out to **4x**, then **2x**, revealing more context.
     - **Correct Guess:** Zooms out to **1x** (Full Image) and provides a direct link to read the story.
@@ -26,7 +28,7 @@
 - **Framework:** React 19 + Vite
 - **Styling:** Tailwind CSS
 - **Icons:** Lucide React
-- **Data Parsing:** Native `DOMParser` (No heavy XML libraries required)
+- **Data Source:** Postgres (synced from RSS), served via Netlify Function
 - **Analytics:** PostHog
 - **Proxy:** Netlify redirects (production) and Vite proxy (development).
 
@@ -62,19 +64,17 @@
 
 ## ⚙️ Configuration
 
-You can customize the content source by editing the constants at the top of `src/HeadlineHunter.jsx`.
+You can customize the content source by editing the constants at the top of `src/App.jsx`.
 
-**Changing the Feed:**
-Want to make a "Sports Only" version? Change the RSS URL search parameters:
+**Changing the Source:**
+Want to swap to a different database or endpoint? Update the API endpoint:
 
 ```javascript
-// Current: All Articles (relative endpoint)
-const RSS_ENDPOINT = "/rss";
-
-// Example: Sports Only
-// Update the Netlify redirect and Vite proxy to point to:
-// https://www.psucollegian.com/search/?f=rss&t=article&c=sports
+// Current: Database-backed Netlify function
+const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
 ```
+
+If you need to adjust which articles are returned, edit the SQL query in `netlify/functions/get-articles.js`.
 
 ---
 
