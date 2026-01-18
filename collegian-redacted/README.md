@@ -1,15 +1,15 @@
 # Redacted - The Daily Collegian Game
 
-A viral "fill-in-the-blank" puzzle game for _The Daily Collegian_. The game fetches the latest headlines from the newspaper's RSS feed, smartly redacts key words, and challenges users to guess the missing context.
+A viral "fill-in-the-blank" puzzle game for _The Daily Collegian_. The game fetches the latest headlines from our article database (synced from the RSS feed), smartly redacts key words, and challenges users to guess the missing context.
 
 ## 🎮 Features
 
-- **Real-time Content:** Fetches actual headlines via RSS from `psucollegian.com`.
+- **Database-Backed Content:** Headlines come from our Postgres database, synced from the RSS feed to avoid 429 rate-limit errors.
 - **Context Aware:** Hides exactly 3 words per headline, keeping "stop words" (the, a, in) visible for context.
 - **Gamified:** Lives system (5 hearts), Streak counter, and Win/Loss animations.
 - **Anti-Frustration:** Includes a "Give Up / Reveal Answer" feature for difficult headlines.
 - **Mobile Optimized:** Sticky input bar, large touch targets, and responsive layout.
-- **Smart Caching:** Uses `sessionStorage` to cache RSS data for 1 hour, preventing 429 Rate Limit errors from the source server.
+- **Smart Caching:** Uses `sessionStorage` to cache database responses for 1 hour, keeping gameplay snappy.
 
 ## 🛠 Tech Stack
 
@@ -18,6 +18,12 @@ A viral "fill-in-the-blank" puzzle game for _The Daily Collegian_. The game fetc
 - **Icons:** Lucide React
 - **Analytics:** PostHog (`posthog-js`)
 - **Effects:** React Confetti
+
+## 🚀 How It Works
+
+1. **Database Sync (RSS → Postgres):** A scheduled scraper ingests the _Daily Collegian_ RSS feed into Postgres, so the app never has to hit the RSS feed directly.
+2. **App Fetch (Postgres → Netlify Function → Client):** The client requests `/.netlify/functions/get-articles`, which queries recent headlines and returns clean JSON.
+3. **Gameplay:** Headlines are redacted (three words removed while keeping stop words) and served to the player round-by-round.
 
 ## 🚀 Getting Started
 
@@ -30,15 +36,13 @@ npm install
 
 ### 2. Local Development
 
-To run the game locally, you **must** use the Vite proxy to avoid CORS errors.
-
 ```bash
 npm run dev
 
 ```
 
 - The app will run at `http://localhost:5173`.
-- The proxy will map `/rss` -> `https://www.psucollegian.com/...`
+- The app calls the Netlify function at `/.netlify/functions/get-articles` to load data.
 
 ### 3. Build for Production
 
@@ -49,46 +53,9 @@ npm run build
 
 ---
 
-## ⚠️ Critical Configuration (CORS & Proxy)
+## ⚙️ Data Configuration
 
-This app relies on fetching data from an external XML RSS feed. Direct browser requests to the feed will fail due to CORS. **We handle this using a Self-Hosted Proxy pattern.**
-
-### Local Development (`vite.config.js`)
-
-Ensure your vite config contains this proxy rule:
-
-```javascript
-server: {
-  proxy: {
-    '/rss': {
-      target: 'https://www.psucollegian.com',
-      changeOrigin: true,
-      rewrite: (path) => path.replace(/^\/rss/, '/search/?f=rss&l=50&t=article'),
-    }
-  }
-}
-
-```
-
-### Production Deployment (Netlify)
-
-This app **must** include a `netlify.toml` file in the base directory to handle production routing.
-
-**File: `netlify.toml**`
-
-```toml
-[[redirects]]
-  from = "/rss"
-  to = "https://www.psucollegian.com/search/?f=rss&l=50&t=article"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-```
+The Netlify function in `netlify/functions/get-articles.js` connects to Postgres using environment variables (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`). Update the SQL query there if you want to change which headlines appear in-game.
 
 ---
 
