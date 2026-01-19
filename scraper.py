@@ -37,7 +37,7 @@ def scrape():
     headers = {'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'}
 
     while True:
-        url = f"https://www.psucollegian.com/search/?f=rss&t=article&l={limit}&o={offset}&s=start_time&sd=desc"
+        url = f"https://www.psucollegian.com/search/?f=rss&t=article&l={limit}&o={offset}&s=start_time&sd=desc&fulltext=collegian3345"
         logging.info(f"Fetching batch: offset {offset}...")
         
         try:
