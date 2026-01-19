@@ -240,14 +240,14 @@ export default function BeatTheEditor() {
     setShowConfetti(false);
   };
 
-  const handleAdminSave = async (nextData, passcode) => {
+  const handleAdminSave = async (nextData) => {
     const response = await fetch(PUBLISH_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      credentials: "include",
       body: JSON.stringify({
-        passcode,
         quiz: nextData,
       }),
     });

@@ -1,7 +1,6 @@
 const { Client } = require("pg");
 const crypto = require("crypto");
 
-const QUIZ_SLUG = "beat-the-editor";
 const SESSION_COOKIE = "quiz_admin_session";
 
 const getClientIp = (event) => {
@@ -40,30 +39,22 @@ exports.handler = async (event) => {
   });
 
   try {
-    const payload = JSON.parse(event.body || "{}");
-    const { quiz } = payload;
-    const clientIp = getClientIp(event);
-
-    if (!quiz) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ message: "Quiz payload is required." }),
-      };
-    }
-
-    await client.connect();
     const cookies = parseCookies(event.headers.cookie || "");
     const token = cookies[SESSION_COOKIE];
 
     if (!token) {
       return {
-        statusCode: 401,
-        body: JSON.stringify({ message: "Admin session required." }),
+        statusCode: 200,
+        body: JSON.stringify({ authenticated: false }),
       };
     }
 
     const tokenHash = hashToken(token);
-    const sessionResult = await client.query(
+    const clientIp = getClientIp(event);
+
+    await client.connect();
+
+    const result = await client.query(
       `
       SELECT token_hash
       FROM quiz_admin_sessions
@@ -74,30 +65,9 @@ exports.handler = async (event) => {
       [tokenHash, clientIp]
     );
 
-    if (sessionResult.rows.length === 0) {
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ message: "Admin session required." }),
-      };
-    }
-
-    const result = await client.query(
-      `
-      INSERT INTO quiz_configs (slug, data, published_at, created_at, updated_at)
-      VALUES ($1, $2, NOW(), NOW(), NOW())
-      ON CONFLICT (slug)
-      DO UPDATE SET
-        data = EXCLUDED.data,
-        published_at = EXCLUDED.published_at,
-        updated_at = NOW()
-      RETURNING data
-      `,
-      [QUIZ_SLUG, quiz]
-    );
-
     return {
       statusCode: 200,
-      body: JSON.stringify({ data: result.rows[0].data }),
+      body: JSON.stringify({ authenticated: result.rows.length > 0 }),
     };
   } catch (error) {
     return {

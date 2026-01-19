@@ -54,11 +54,11 @@ Set these environment variables for Netlify Functions (same DB values used by ot
 
 ### 3. Brute-force protection
 
-Publishing is guarded by a basic IP-based lockout (5 attempts in 15 minutes triggers a 30-minute lock). This uses the `quiz_admin_attempts` table created in the same schema file.
+Admin login is protected by an IP-based lockout (5 attempts in 15 minutes triggers a 30-minute lock). This uses the `quiz_admin_attempts` table created in the same schema file.
 
-### 3. Publish quiz updates
+### 4. Publish quiz updates
 
-Open the game with `?admin=1` appended to the URL, sign in with the admin passcode, and press **Publish**. The UI sends the quiz payload to `/.netlify/functions/publish-quiz`, which stores it in the database.
+Open the game with `?admin=1` appended to the URL, sign in with the admin passcode, and press **Publish**. Successful login creates a short-lived, HttpOnly session cookie; publish requests require that session and are rejected without it.
 
 ---
 
