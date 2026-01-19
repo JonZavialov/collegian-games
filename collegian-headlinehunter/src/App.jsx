@@ -260,6 +260,13 @@ export default function HeadlineHunter() {
           >
             <Info size={16} /> How to play
           </button>
+          <button
+            type="button"
+            onClick={() => analytics.logFeedback()}
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+          >
+            Feedback
+          </button>
           <div className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
             <Trophy size={18} /> {score}
           </div>

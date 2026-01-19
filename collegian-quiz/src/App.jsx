@@ -213,6 +213,16 @@ export default function BeatTheEditor() {
     </button>
   );
 
+  const feedbackButton = (
+    <button
+      type="button"
+      onClick={() => analytics.logFeedback()}
+      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+    >
+      Feedback
+    </button>
+  );
+
   const resetGameState = (nextData) => {
     setQuizData(nextData);
     setGameState("intro");
@@ -392,7 +402,10 @@ export default function BeatTheEditor() {
       <>
         <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4">{tutorialButton}</div>
+          <div className="absolute top-4 right-4 flex gap-2">
+            {tutorialButton}
+            {feedbackButton}
+          </div>
           {streak > 0 && (
             <div className="mb-4 flex items-center gap-1 text-orange-500 font-bold bg-orange-100 px-3 py-1 rounded-full text-xs uppercase tracking-wide">
               <Flame size={14} /> {streak} Game Streak
@@ -466,7 +479,10 @@ export default function BeatTheEditor() {
       <>
         <div className="min-h-[400px] bg-white p-6 rounded-xl max-w-md mx-auto relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4">{tutorialButton}</div>
+          <div className="absolute top-4 right-4 flex gap-2">
+            {tutorialButton}
+            {feedbackButton}
+          </div>
           <div className="absolute top-0 left-0 h-1.5 bg-slate-100 w-full">
             <div
               className="h-full bg-blue-600 transition-all duration-300"
