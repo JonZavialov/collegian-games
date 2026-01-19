@@ -70,6 +70,8 @@ export default function TimeMachine() {
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
+  const prefetchedPdfUrlsRef = useRef(new Map());
+  const prefetchControllersRef = useRef(new Map());
   const analytics = useGameAnalytics("time-machine", pageNumber);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const devicePixelRatio =
@@ -143,6 +145,15 @@ export default function TimeMachine() {
     setPdfSource(null);
     setTotalPages(null);
 
+    prefetchedPdfUrlsRef.current.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+    prefetchedPdfUrlsRef.current.clear();
+    prefetchControllersRef.current.forEach((controller) => {
+      controller.abort();
+    });
+    prefetchControllersRef.current.clear();
+
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
   }, [analytics]);
@@ -215,7 +226,7 @@ export default function TimeMachine() {
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
-      }, 1500);
+      }, 700);
     }
   };
 
@@ -375,6 +386,18 @@ export default function TimeMachine() {
 
     const controller = new AbortController();
     const fetchPdf = async () => {
+      if (prefetchedPdfUrlsRef.current.has(pageNumber)) {
+        const cachedUrl = prefetchedPdfUrlsRef.current.get(pageNumber);
+        prefetchedPdfUrlsRef.current.delete(pageNumber);
+        if (pdfObjectUrlRef.current) {
+          URL.revokeObjectURL(pdfObjectUrlRef.current);
+        }
+        pdfObjectUrlRef.current = cachedUrl;
+        setPdfSource(cachedUrl);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setArchiveError(null);
       setPdfSource(null);
@@ -431,6 +454,70 @@ export default function TimeMachine() {
       }
     };
   }, [gameState, handleLoadError, pdfUrl]);
+
+  useEffect(() => {
+    if (!targetDate || gameState !== "playing") {
+      return;
+    }
+
+    const nextPage = pageNumber + 1;
+    if (prefetchedPdfUrlsRef.current.has(nextPage)) {
+      return;
+    }
+    if (prefetchControllersRef.current.has(nextPage)) {
+      return;
+    }
+
+    const controller = new AbortController();
+    prefetchControllersRef.current.set(nextPage, controller);
+
+    const prefetchNextPage = async () => {
+      const url = getPdfUrlForPage(nextPage);
+      if (!url) {
+        return;
+      }
+
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+        });
+
+        if (response.status === 404) {
+          setTotalPages((prevTotal) => prevTotal ?? pageNumber);
+          return;
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        prefetchedPdfUrlsRef.current.set(nextPage, objectUrl);
+
+        if (prefetchedPdfUrlsRef.current.size > 2) {
+          const [oldestPage, oldestUrl] =
+            prefetchedPdfUrlsRef.current.entries().next().value;
+          prefetchedPdfUrlsRef.current.delete(oldestPage);
+          URL.revokeObjectURL(oldestUrl);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to prefetch page:", error);
+      } finally {
+        prefetchControllersRef.current.delete(nextPage);
+      }
+    };
+
+    prefetchNextPage();
+
+    return () => {
+      controller.abort();
+      prefetchControllersRef.current.delete(nextPage);
+    };
+  }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
