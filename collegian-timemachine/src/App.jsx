@@ -74,6 +74,9 @@ export default function TimeMachine() {
   const prefetchControllersRef = useRef(new Map());
   const analytics = useGameAnalytics("time-machine", pageNumber);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
+  const maxPageLimit = totalPages
+    ? Math.min(totalPages, MAX_PAGE_PROBE)
+    : MAX_PAGE_PROBE;
   const devicePixelRatio =
     typeof window !== "undefined"
       ? Math.min(window.devicePixelRatio || 1, 2)
@@ -214,6 +217,24 @@ export default function TimeMachine() {
         pageNumber,
       );
     } else {
+      if (pageNumber >= maxPageLimit) {
+        setGameState("lost");
+        setLoading(false);
+        setTotalPages((prevTotal) => prevTotal ?? maxPageLimit);
+        setFeedbackMsg(null);
+
+        // 📊 TRACK: Game Lost (Ran out of pages)
+        analytics.logLoss(
+          {
+            target_year: targetDate.year,
+            pages_viewed: pageNumber,
+            score: score,
+          },
+          pageNumber,
+        );
+        return;
+      }
+
       // WRONG GUESS UX
       setShake(true);
       setFeedbackMsg(
