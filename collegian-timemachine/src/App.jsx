@@ -20,13 +20,14 @@ import "react-pdf/dist/Page/TextLayer.css";
 // ✅ PDF WORKER SETUP
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
+  import.meta.url,
 ).toString();
 
 // CONFIGURATION
 const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
+const MAX_PAGE_PROBE = 10;
 
 const getRandomDate = () => {
   const start = new Date(`${START_YEAR}-09-05`);
@@ -34,7 +35,7 @@ const getRandomDate = () => {
   let date;
   do {
     date = new Date(
-      start.getTime() + Math.random() * (end.getTime() - start.getTime())
+      start.getTime() + Math.random() * (end.getTime() - start.getTime()),
     );
   } while (date.getDay() === 0 || date.getDay() === 6);
 
@@ -54,6 +55,8 @@ export default function TimeMachine() {
   const [retryCount, setRetryCount] = useState(0);
   const [archiveError, setArchiveError] = useState(null);
   const [pdfSource, setPdfSource] = useState(null);
+  const [totalPages, setTotalPages] = useState(null);
+  const [isPageCountLoading, setIsPageCountLoading] = useState(false);
 
   // UX State
   const [guessYear, setGuessYear] = useState(1975);
@@ -67,6 +70,8 @@ export default function TimeMachine() {
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
+  const prefetchedPdfUrlsRef = useRef(new Map());
+  const prefetchControllersRef = useRef(new Map());
   const analytics = useGameAnalytics("time-machine", pageNumber);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const devicePixelRatio =
@@ -138,6 +143,16 @@ export default function TimeMachine() {
     setGuessYear(1975);
     setZoomLevel(1);
     setPdfSource(null);
+    setTotalPages(null);
+
+    prefetchedPdfUrlsRef.current.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+    prefetchedPdfUrlsRef.current.clear();
+    prefetchControllersRef.current.forEach((controller) => {
+      controller.abort();
+    });
+    prefetchControllersRef.current.clear();
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
@@ -151,6 +166,7 @@ export default function TimeMachine() {
     } else {
       setLoading(false);
       setGameState("lost");
+      setTotalPages((prevTotal) => prevTotal ?? pageNumber - 1);
 
       // 📊 TRACK: Game Lost (Ran out of pages)
       analytics.logLoss(
@@ -159,7 +175,7 @@ export default function TimeMachine() {
           pages_viewed: pageNumber,
           score: score,
         },
-        pageNumber
+        pageNumber,
       );
     }
   }, [analytics, pageNumber, score, targetDate?.full, targetDate?.year]);
@@ -180,7 +196,7 @@ export default function TimeMachine() {
         result: isWin ? "win" : "miss",
         page_number: pageNumber,
       },
-      pageNumber
+      pageNumber,
     );
 
     // WIN CONDITION: +/- 2 Years
@@ -195,13 +211,13 @@ export default function TimeMachine() {
           streak: score + 1,
           target_year: targetDate.year,
         },
-        pageNumber
+        pageNumber,
       );
     } else {
       // WRONG GUESS UX
       setShake(true);
       setFeedbackMsg(
-        `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`
+        `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`,
       );
 
       setTimeout(() => setShake(false), 500);
@@ -210,9 +226,104 @@ export default function TimeMachine() {
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
-      }, 1500);
+      }, 700);
     }
   };
+
+  const getPdfUrlForPage = useCallback(
+    (page) =>
+      targetDate
+        ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${page}.pdf`
+        : null,
+    [targetDate],
+  );
+
+  useEffect(() => {
+    if (!targetDate || gameState !== "playing") {
+      return;
+    }
+
+    const controller = new AbortController();
+    const findTotalPages = async () => {
+      setIsPageCountLoading(true);
+      setTotalPages(null);
+
+      const pageExists = async (page) => {
+        const url = getPdfUrlForPage(page);
+        if (!url) {
+          return false;
+        }
+
+        const response = await fetch(url, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+
+        if (response.status === 404) {
+          return false;
+        }
+
+        if (response.status === 403 || response.status === 429) {
+          throw new Error("Archive busy");
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to probe page ${page}: ${response.status}`);
+        }
+
+        return true;
+      };
+
+      try {
+        let lowerBound = 0;
+        let upperBound = 1;
+
+        while (upperBound <= MAX_PAGE_PROBE) {
+          const exists = await pageExists(upperBound);
+          if (!exists) {
+            break;
+          }
+          lowerBound = upperBound;
+          upperBound *= 2;
+        }
+
+        const searchUpper = Math.min(upperBound - 1, MAX_PAGE_PROBE);
+        let low = lowerBound + 1;
+        let high = searchUpper;
+        let lastExisting = lowerBound;
+
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          const exists = await pageExists(mid);
+          if (exists) {
+            lastExisting = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        if (!controller.signal.aborted) {
+          setTotalPages(lastExisting || null);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to preload page count:", error);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsPageCountLoading(false);
+        }
+      }
+    };
+
+    findTotalPages();
+
+    return () => {
+      controller.abort();
+    };
+  }, [gameState, getPdfUrlForPage, targetDate]);
 
   const onPageLoadSuccess = async (page) => {
     setLoading(false);
@@ -220,9 +331,7 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
-    const baseScale = pdfViewportWidth
-      ? pdfViewportWidth / viewport.width
-      : 1;
+    const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
     const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
     textContent.items.forEach((item) => {
@@ -245,9 +354,7 @@ export default function TimeMachine() {
     setRedactionBoxes(boxes);
   };
 
-  const pdfUrl = targetDate
-    ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${pageNumber}.pdf`
-    : null;
+  const pdfUrl = getPdfUrlForPage(pageNumber);
 
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
@@ -277,6 +384,18 @@ export default function TimeMachine() {
 
     const controller = new AbortController();
     const fetchPdf = async () => {
+      if (prefetchedPdfUrlsRef.current.has(pageNumber)) {
+        const cachedUrl = prefetchedPdfUrlsRef.current.get(pageNumber);
+        prefetchedPdfUrlsRef.current.delete(pageNumber);
+        if (pdfObjectUrlRef.current) {
+          URL.revokeObjectURL(pdfObjectUrlRef.current);
+        }
+        pdfObjectUrlRef.current = cachedUrl;
+        setPdfSource(cachedUrl);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setArchiveError(null);
       setPdfSource(null);
@@ -291,7 +410,7 @@ export default function TimeMachine() {
 
         if (response.status === 403 || response.status === 429) {
           setArchiveError(
-            "The Archives are currently experiencing high traffic. Please try again later."
+            "The Archives are currently experiencing high traffic. Please try again later.",
           );
           setLoading(false);
           return;
@@ -317,7 +436,7 @@ export default function TimeMachine() {
         }
         console.error("Failed to fetch PDF:", error);
         setArchiveError(
-          "We couldn't load this issue right now. Please try again."
+          "We couldn't load this issue right now. Please try again.",
         );
         setLoading(false);
       }
@@ -333,6 +452,71 @@ export default function TimeMachine() {
       }
     };
   }, [gameState, handleLoadError, pdfUrl]);
+
+  useEffect(() => {
+    if (!targetDate || gameState !== "playing") {
+      return;
+    }
+
+    const nextPage = pageNumber + 1;
+    if (prefetchedPdfUrlsRef.current.has(nextPage)) {
+      return;
+    }
+    if (prefetchControllersRef.current.has(nextPage)) {
+      return;
+    }
+
+    const controller = new AbortController();
+    prefetchControllersRef.current.set(nextPage, controller);
+
+    const prefetchNextPage = async () => {
+      const url = getPdfUrlForPage(nextPage);
+      if (!url) {
+        return;
+      }
+
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+        });
+
+        if (response.status === 404) {
+          setTotalPages((prevTotal) => prevTotal ?? pageNumber);
+          return;
+        }
+
+        if (!response.ok) {
+          return;
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        prefetchedPdfUrlsRef.current.set(nextPage, objectUrl);
+
+        if (prefetchedPdfUrlsRef.current.size > 2) {
+          const [oldestPage, oldestUrl] = prefetchedPdfUrlsRef.current
+            .entries()
+            .next().value;
+          prefetchedPdfUrlsRef.current.delete(oldestPage);
+          URL.revokeObjectURL(oldestUrl);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to prefetch page:", error);
+      } finally {
+        prefetchControllersRef.current.delete(nextPage);
+      }
+    };
+
+    prefetchNextPage();
+
+    return () => {
+      controller.abort();
+      prefetchControllersRef.current.delete(nextPage);
+    };
+  }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
@@ -379,8 +563,8 @@ export default function TimeMachine() {
                     2
                   </span>
                   <p>
-                    Slide the year picker to your best guess and lock it in.
-                    You win if you&apos;re within ±2 years.
+                    Slide the year picker to your best guess and lock it in. You
+                    win if you&apos;re within ±2 years.
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -470,7 +654,9 @@ export default function TimeMachine() {
               <span className="font-bold text-slate-700">
                 {loading
                   ? "Scanning Archives..."
-                  : `Viewing Page ${pageNumber}`}
+                  : `Viewing Page ${pageNumber}${
+                      totalPages ? ` of ${totalPages}` : ""
+                    }`}
               </span>
             </div>
 
@@ -489,6 +675,16 @@ export default function TimeMachine() {
             {retryCount > 0 && loading && pageNumber === 1 && (
               <p className="text-xs text-slate-400 animate-pulse">
                 Searching for a valid issue... (Attempt {retryCount})
+              </p>
+            )}
+
+            {!loading && !archiveError && (
+              <p className="mt-2 text-xs font-semibold text-slate-400">
+                {isPageCountLoading
+                  ? "Counting total pages..."
+                  : totalPages
+                    ? `Total pages available: ${totalPages}`
+                    : "Total pages unavailable for this issue."}
               </p>
             )}
           </div>
@@ -614,9 +810,7 @@ export default function TimeMachine() {
               <span className="font-bold text-slate-800">Zoom</span>
               <button
                 type="button"
-                onClick={() =>
-                  setZoomLevel((prev) => Math.max(1, prev - 0.25))
-                }
+                onClick={() => setZoomLevel((prev) => Math.max(1, prev - 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 -
@@ -626,9 +820,7 @@ export default function TimeMachine() {
               </span>
               <button
                 type="button"
-                onClick={() =>
-                  setZoomLevel((prev) => Math.min(3, prev + 0.25))
-                }
+                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 +
@@ -712,15 +904,15 @@ export default function TimeMachine() {
                   {archiveError
                     ? "Archives are temporarily unavailable."
                     : gameState === "lost"
-                    ? "No more pages available for this issue."
-                    : "PDF is hidden while you review results."}
+                      ? "No more pages available for this issue."
+                      : "PDF is hidden while you review results."}
                 </p>
                 <p>
                   {archiveError
                     ? "Please try again later or visit the full archives for text-based access."
                     : gameState === "lost"
-                    ? "Use the Try Again button to start a new issue."
-                    : "Start a new game or view the full issue to keep reading."}
+                      ? "Use the Try Again button to start a new issue."
+                      : "Start a new game or view the full issue to keep reading."}
                 </p>
                 <a
                   href={originalLink}
