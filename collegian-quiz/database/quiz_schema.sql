@@ -8,3 +8,14 @@ CREATE TABLE IF NOT EXISTS quiz_configs (
 );
 
 CREATE INDEX IF NOT EXISTS quiz_configs_slug_idx ON quiz_configs (slug);
+
+CREATE TABLE IF NOT EXISTS quiz_admin_attempts (
+  ip_address TEXT PRIMARY KEY,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  first_attempt_at TIMESTAMPTZ,
+  last_attempt_at TIMESTAMPTZ,
+  locked_until TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS quiz_admin_attempts_locked_idx
+  ON quiz_admin_attempts (locked_until);
