@@ -3,7 +3,7 @@ import { Github } from "lucide-react";
 
 const DisclaimerFooter = () => {
   // CONFIGURATION: Update these!
-  const DEV_1 = { name: "Jon Zavialov", url: "https://github.com/JonZavialov" };
+  const DEV_1 = { name: "Jon Zavialov", url: "https://jonzav.me" };
   const DEV_2 = { name: "Rohan Badami", url: "https://github.com/RohanBadami" };
 
   return (
