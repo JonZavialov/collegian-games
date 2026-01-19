@@ -27,6 +27,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
+const MAX_PAGE_PROBE = 64;
 
 const getRandomDate = () => {
   const start = new Date(`${START_YEAR}-09-05`);
@@ -54,6 +55,8 @@ export default function TimeMachine() {
   const [retryCount, setRetryCount] = useState(0);
   const [archiveError, setArchiveError] = useState(null);
   const [pdfSource, setPdfSource] = useState(null);
+  const [totalPages, setTotalPages] = useState(null);
+  const [isPageCountLoading, setIsPageCountLoading] = useState(false);
 
   // UX State
   const [guessYear, setGuessYear] = useState(1975);
@@ -138,6 +141,7 @@ export default function TimeMachine() {
     setGuessYear(1975);
     setZoomLevel(1);
     setPdfSource(null);
+    setTotalPages(null);
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
@@ -151,6 +155,7 @@ export default function TimeMachine() {
     } else {
       setLoading(false);
       setGameState("lost");
+      setTotalPages((prevTotal) => prevTotal ?? pageNumber - 1);
 
       // 📊 TRACK: Game Lost (Ran out of pages)
       analytics.logLoss(
@@ -214,6 +219,101 @@ export default function TimeMachine() {
     }
   };
 
+  const getPdfUrlForPage = useCallback(
+    (page) =>
+      targetDate
+        ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${page}.pdf`
+        : null,
+    [targetDate]
+  );
+
+  useEffect(() => {
+    if (!targetDate || gameState !== "playing") {
+      return;
+    }
+
+    const controller = new AbortController();
+    const findTotalPages = async () => {
+      setIsPageCountLoading(true);
+      setTotalPages(null);
+
+      const pageExists = async (page) => {
+        const url = getPdfUrlForPage(page);
+        if (!url) {
+          return false;
+        }
+
+        const response = await fetch(url, {
+          method: "HEAD",
+          signal: controller.signal,
+        });
+
+        if (response.status === 404) {
+          return false;
+        }
+
+        if (response.status === 403 || response.status === 429) {
+          throw new Error("Archive busy");
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to probe page ${page}: ${response.status}`);
+        }
+
+        return true;
+      };
+
+      try {
+        let lowerBound = 0;
+        let upperBound = 1;
+
+        while (upperBound <= MAX_PAGE_PROBE) {
+          const exists = await pageExists(upperBound);
+          if (!exists) {
+            break;
+          }
+          lowerBound = upperBound;
+          upperBound *= 2;
+        }
+
+        const searchUpper = Math.min(upperBound - 1, MAX_PAGE_PROBE);
+        let low = lowerBound + 1;
+        let high = searchUpper;
+        let lastExisting = lowerBound;
+
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          const exists = await pageExists(mid);
+          if (exists) {
+            lastExisting = mid;
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+
+        if (!controller.signal.aborted) {
+          setTotalPages(lastExisting || null);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error("Failed to preload page count:", error);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsPageCountLoading(false);
+        }
+      }
+    };
+
+    findTotalPages();
+
+    return () => {
+      controller.abort();
+    };
+  }, [gameState, getPdfUrlForPage, targetDate]);
+
   const onPageLoadSuccess = async (page) => {
     setLoading(false);
     const boxes = [];
@@ -245,9 +345,7 @@ export default function TimeMachine() {
     setRedactionBoxes(boxes);
   };
 
-  const pdfUrl = targetDate
-    ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${pageNumber}.pdf`
-    : null;
+  const pdfUrl = getPdfUrlForPage(pageNumber);
 
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
@@ -470,7 +568,9 @@ export default function TimeMachine() {
               <span className="font-bold text-slate-700">
                 {loading
                   ? "Scanning Archives..."
-                  : `Viewing Page ${pageNumber}`}
+                  : `Viewing Page ${pageNumber}${
+                      totalPages ? ` of ${totalPages}` : ""
+                    }`}
               </span>
             </div>
 
@@ -489,6 +589,16 @@ export default function TimeMachine() {
             {retryCount > 0 && loading && pageNumber === 1 && (
               <p className="text-xs text-slate-400 animate-pulse">
                 Searching for a valid issue... (Attempt {retryCount})
+              </p>
+            )}
+
+            {!loading && !archiveError && (
+              <p className="mt-2 text-xs font-semibold text-slate-400">
+                {isPageCountLoading
+                  ? "Counting total pages..."
+                  : totalPages
+                  ? `Total pages available: ${totalPages}`
+                  : "Total pages unavailable for this issue."}
               </p>
             )}
           </div>
