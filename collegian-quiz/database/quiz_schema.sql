@@ -19,3 +19,13 @@ CREATE TABLE IF NOT EXISTS quiz_admin_attempts (
 
 CREATE INDEX IF NOT EXISTS quiz_admin_attempts_locked_idx
   ON quiz_admin_attempts (locked_until);
+
+CREATE TABLE IF NOT EXISTS quiz_admin_sessions (
+  token_hash TEXT PRIMARY KEY,
+  ip_address TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS quiz_admin_sessions_expires_idx
+  ON quiz_admin_sessions (expires_at);

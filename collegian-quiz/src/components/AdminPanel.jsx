@@ -5,7 +5,6 @@ import {
   Copy,
   Download,
   KeyRound,
-  Lock,
   LogOut,
   Plus,
   Save,
@@ -15,35 +14,11 @@ import {
 } from "lucide-react";
 import { createEmptyQuestion, normalizeQuizData } from "../utils/quizData";
 
-const ADMIN_PASSCODE_KEY = "beat-the-editor_admin_passcode";
-const ADMIN_SESSION_KEY = "beat-the-editor_admin_session";
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 8;
-
-const getSession = () => {
-  const rawSession = localStorage.getItem(ADMIN_SESSION_KEY);
-  if (!rawSession) return null;
-  try {
-    return JSON.parse(rawSession);
-  } catch (error) {
-    return null;
-  }
-};
-
-const setSession = () => {
-  const expiresAt = Date.now() + SESSION_DURATION_MS;
-  localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ expiresAt }));
-};
-
-const clearSession = () => {
-  localStorage.removeItem(ADMIN_SESSION_KEY);
-};
+const SESSION_ENDPOINT = "/.netlify/functions/admin-session";
+const LOGIN_ENDPOINT = "/.netlify/functions/admin-login";
+const LOGOUT_ENDPOINT = "/.netlify/functions/admin-logout";
 
 const cloneData = (data) => JSON.parse(JSON.stringify(data));
-
-const getActivePasscode = () =>
-  localStorage.getItem(ADMIN_PASSCODE_KEY) ||
-  import.meta.env.VITE_ADMIN_PASSCODE ||
-  "";
 
 const questionHasIssues = (question) => {
   if (!question.text.trim()) return true;
@@ -62,18 +37,10 @@ export default function AdminPanel({
   const [importError, setImportError] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [passcodeInput, setPasscodeInput] = useState("");
-  const [newPasscode, setNewPasscode] = useState("");
   const [authError, setAuthError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-
-  const activePasscode = getActivePasscode();
-  const hasStoredPasscode = Boolean(activePasscode);
-
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const session = getSession();
-    return Boolean(session && session.expiresAt > Date.now());
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     setDraftData(cloneData(data));
@@ -94,39 +61,58 @@ export default function AdminPanel({
     [draftData, data]
   );
 
-  const handleLogin = (event) => {
-    event.preventDefault();
-    const currentPasscode = getActivePasscode();
-    if (!currentPasscode) {
-      setAuthError("Set a new passcode to enable admin access.");
-      return;
+  const refreshSession = async () => {
+    try {
+      const response = await fetch(SESSION_ENDPOINT, { credentials: "include" });
+      if (!response.ok) {
+        setIsAuthenticated(false);
+        return;
+      }
+      const payload = await response.json();
+      setIsAuthenticated(Boolean(payload.authenticated));
+    } catch (error) {
+      setIsAuthenticated(false);
     }
-    if (passcodeInput !== currentPasscode) {
-      setAuthError("Passcode does not match.");
-      return;
-    }
-    setSession();
-    setIsAuthenticated(true);
-    setAuthError("");
-    setPasscodeInput("");
   };
 
-  const handleCreatePasscode = (event) => {
+  useEffect(() => {
+    refreshSession();
+  }, []);
+
+  const handleLogin = async (event) => {
     event.preventDefault();
-    if (newPasscode.trim().length < 6) {
-      setAuthError("Passcode must be at least 6 characters.");
-      return;
-    }
-    localStorage.setItem(ADMIN_PASSCODE_KEY, newPasscode.trim());
-    setSession();
-    setIsAuthenticated(true);
     setAuthError("");
-    setNewPasscode("");
+    try {
+      const response = await fetch(LOGIN_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ passcode: passcodeInput }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || "Login failed.");
+      }
+
+      setIsAuthenticated(true);
+      setPasscodeInput("");
+    } catch (error) {
+      setAuthError(error.message || "Login failed.");
+    }
   };
 
-  const handleLogout = () => {
-    clearSession();
-    setIsAuthenticated(false);
+  const handleLogout = async () => {
+    try {
+      await fetch(LOGOUT_ENDPOINT, {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      setIsAuthenticated(false);
+    }
   };
 
   const updateField = (field, value) => {
@@ -198,8 +184,7 @@ export default function AdminPanel({
     setIsSaving(true);
     try {
       const normalized = normalizeQuizData(draftData);
-      const passcode = getActivePasscode();
-      await onSave(normalized, passcode);
+      await onSave(normalized);
       setStatusMessage("Published! Players will see the latest version.");
       setTimeout(() => setStatusMessage(""), 3500);
     } catch (error) {
@@ -257,61 +242,31 @@ export default function AdminPanel({
             </div>
           </div>
 
-          {hasStoredPasscode ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <label className="block text-sm font-semibold text-slate-300">
-                Passcode
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
-                  <KeyRound size={16} className="text-slate-400" />
-                  <input
-                    type="password"
-                    value={passcodeInput}
-                    onChange={(event) => setPasscodeInput(event.target.value)}
-                    className="w-full bg-transparent text-white focus:outline-none"
-                    placeholder="Enter passcode"
-                  />
-                </div>
-              </label>
-              {authError && (
-                <p className="text-sm text-rose-400">{authError}</p>
-              )}
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-blue-600 py-2 font-bold text-white hover:bg-blue-500"
-              >
-                Unlock Admin
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleCreatePasscode} className="space-y-4">
-              <label className="block text-sm font-semibold text-slate-300">
-                Create admin passcode
-                <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
-                  <Lock size={16} className="text-slate-400" />
-                  <input
-                    type="password"
-                    value={newPasscode}
-                    onChange={(event) => setNewPasscode(event.target.value)}
-                    className="w-full bg-transparent text-white focus:outline-none"
-                    placeholder="Minimum 6 characters"
-                  />
-                </div>
-              </label>
-              {authError && (
-                <p className="text-sm text-rose-400">{authError}</p>
-              )}
-              <button
-                type="submit"
-                className="w-full rounded-lg bg-emerald-500 py-2 font-bold text-white hover:bg-emerald-400"
-              >
-                Set passcode & enter
-              </button>
-              <p className="text-xs text-slate-500">
-                Passcode is stored in this browser only. For shared access, set
-                VITE_ADMIN_PASSCODE in your environment.
-              </p>
-            </form>
-          )}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <label className="block text-sm font-semibold text-slate-300">
+              Passcode
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
+                <KeyRound size={16} className="text-slate-400" />
+                <input
+                  type="password"
+                  value={passcodeInput}
+                  onChange={(event) => setPasscodeInput(event.target.value)}
+                  className="w-full bg-transparent text-white focus:outline-none"
+                  placeholder="Enter passcode"
+                />
+              </div>
+            </label>
+            {authError && <p className="text-sm text-rose-400">{authError}</p>}
+            <button
+              type="submit"
+              className="w-full rounded-lg bg-blue-600 py-2 font-bold text-white hover:bg-blue-500"
+            >
+              Unlock Admin
+            </button>
+            <p className="text-xs text-slate-500">
+              Access is verified server-side and protected by rate limits.
+            </p>
+          </form>
 
           <button
             type="button"
