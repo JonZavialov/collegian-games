@@ -6,7 +6,7 @@ It covers setup, configuration for your editors (Google Sheets), analytics, and 
 
 # Beat The Editor - Weekly News Quiz
 
-"Beat The Editor" is a gamified, interactive news quiz designed for the school newspaper. It is built as a standalone React application that fetches weekly questions from a Google Sheet and sends engagement analytics to PostHog.
+"Beat The Editor" is a gamified, interactive news quiz designed for the school newspaper. It is built as a standalone React application that fetches weekly questions from the Collegian Postgres database and sends engagement analytics to PostHog.
 
 The app is designed to be embedded via an iframe on the main news website to increase time-on-site, drive ad revenue, and traffic to articles.
 
@@ -29,28 +29,32 @@ Click the link in the terminal (usually `http://localhost:5173`) to see the game
 
 ---
 
-## 🛠 Configuration (The Google Sheet)
+## 🛠 Configuration (Database + Admin UI)
 
-The content is powered by a Google Sheet. **No coding is required to update the weekly questions.**
+The quiz now loads from the Collegian Postgres database (the same one used for RSS/article data). Editors publish updates via the in-app admin UI, which writes to the database through a Netlify Function.
 
-### 1. Create the Sheet
+### 1. Create the quiz table
 
-Create a Google Sheet with the following **exact headers** in the first row. The app is smart enough to handle small typos (e.g., "Correct Index" vs "CorrectIndex"), but try to match these:
+Run the SQL in `database/quiz_schema.sql` to add the quiz table to your database:
 
-| Question | Option1 | Option2 | Option3 | Option4 | CorrectIndex | Blurb         | ArticleURL   | ArticleTitle | EditorName | EditorScore |
-| -------- | ------- | ------- | ------- | ------- | ------------ | ------------- | ------------ | ------------ | ---------- | ----------- |
-| Who won? | PSU     | Pitt    | Temple  | Penn    | 0            | PSU won by 3. | /sports/game | PSU Wins     | Sarah      | 3           |
+```bash
+psql "$DATABASE_URL" -f database/quiz_schema.sql
+```
 
-- **CorrectIndex:** 0 for Option 1, 1 for Option 2, etc.
-- **EditorScore:** The score to beat (e.g., 3). This must be the same for every row.
-- **ArticleTitle:** The text that appears on the "Read Article" button.
+### 2. Configure environment variables
 
-### 2. Connect the Sheet
+Set these environment variables for Netlify Functions (same DB values used by other games):
 
-1. Go to **File > Share > Publish to web**.
-2. Select **Sheet1** (or your tab name) and **Comma-separated values (.csv)**.
-3. Click **Publish** and copy the link.
-4. Open `src/App.jsx` and replace the `GOOGLE_SHEET_URL` variable with your link.
+- `DB_HOST`
+- `DB_NAME`
+- `DB_USER`
+- `DB_PASSWORD`
+- `DB_PORT` (optional; defaults to 5432)
+- `QUIZ_ADMIN_PASSCODE` (required to publish quiz updates)
+
+### 3. Publish quiz updates
+
+Open the game with `?admin=1` appended to the URL, sign in with the admin passcode, and press **Publish**. The UI sends the quiz payload to `/.netlify/functions/publish-quiz`, which stores it in the database.
 
 ---
 
@@ -112,7 +116,7 @@ _Note: If the "Results" screen is cut off on mobile, increase `min-height: 850px
 ## 🐛 Troubleshooting
 
 **"The questions aren't updating!"**
-Google Sheets caches the CSV export. Changes can take **5–10 minutes** to appear. To force a check, open the CSV link in an Incognito window.
+Verify that the Netlify functions have DB credentials, the quiz table exists, and the admin passcode matches `QUIZ_ADMIN_PASSCODE`.
 
 **"The Analytics aren't showing up."**
 Ensure your Ad Blocker isn't blocking PostHog. Check the browser console for network errors.

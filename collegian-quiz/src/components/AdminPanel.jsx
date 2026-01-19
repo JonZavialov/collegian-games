@@ -64,6 +64,8 @@ export default function AdminPanel({
   const [passcodeInput, setPasscodeInput] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
   const [authError, setAuthError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const activePasscode = getActivePasscode();
   const hasStoredPasscode = Boolean(activePasscode);
@@ -191,11 +193,20 @@ export default function AdminPanel({
     }));
   };
 
-  const handleSave = () => {
-    const normalized = normalizeQuizData(draftData);
-    onSave(normalized);
-    setStatusMessage("Published! Players will see the latest version.");
-    setTimeout(() => setStatusMessage(""), 3500);
+  const handleSave = async () => {
+    setSaveError("");
+    setIsSaving(true);
+    try {
+      const normalized = normalizeQuizData(draftData);
+      const passcode = getActivePasscode();
+      await onSave(normalized, passcode);
+      setStatusMessage("Published! Players will see the latest version.");
+      setTimeout(() => setStatusMessage(""), 3500);
+    } catch (error) {
+      setSaveError(error.message || "Failed to publish. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleExport = () => {
@@ -330,9 +341,10 @@ export default function AdminPanel({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-200 hover:bg-blue-500"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-200 hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-blue-400"
+              disabled={isSaving}
             >
-              <Save size={16} /> Publish
+              <Save size={16} /> {isSaving ? "Publishing..." : "Publish"}
             </button>
             <button
               type="button"
@@ -346,6 +358,11 @@ export default function AdminPanel({
         {hasChanges && (
           <div className="border-t border-amber-200 bg-amber-50 px-6 py-3 text-sm font-semibold text-amber-800">
             You have unsaved changes. Publish to update the live quiz.
+          </div>
+        )}
+        {saveError && (
+          <div className="border-t border-rose-200 bg-rose-50 px-6 py-3 text-sm font-semibold text-rose-700">
+            {saveError}
           </div>
         )}
       </header>

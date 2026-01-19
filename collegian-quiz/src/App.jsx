@@ -17,18 +17,9 @@ import AdminPanel from "./components/AdminPanel";
 import { defaultQuizData } from "./data/defaultQuizData";
 import { normalizeQuizData } from "./utils/quizData";
 
-const QUIZ_STORAGE_KEY = "beat-the-editor_quiz_data";
 const ADMIN_QUERY_KEY = "admin";
-
-const loadStoredQuizData = () => {
-  const stored = localStorage.getItem(QUIZ_STORAGE_KEY);
-  if (!stored) return defaultQuizData;
-  try {
-    return normalizeQuizData(JSON.parse(stored));
-  } catch (error) {
-    return defaultQuizData;
-  }
-};
+const QUIZ_ENDPOINT = "/.netlify/functions/get-quiz";
+const PUBLISH_ENDPOINT = "/.netlify/functions/publish-quiz";
 
 const setAdminQuery = (enabled) => {
   const url = new URL(window.location.href);
@@ -53,7 +44,8 @@ const getWeekInfo = (date) => {
 const toWeekKey = (info) => `${info.year}-W${info.week}`;
 
 export default function BeatTheEditor() {
-  const [quizData, setQuizData] = useState(() => loadStoredQuizData());
+  const [loading, setLoading] = useState(true);
+  const [quizData, setQuizData] = useState(defaultQuizData);
   const [gameState, setGameState] = useState("intro");
   const [viewMode, setViewMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -80,6 +72,37 @@ export default function BeatTheEditor() {
     // Load Streak from Local Storage
     const savedStreak = parseInt(localStorage.getItem("newsGameStreak") || "0");
     setStreak(savedStreak);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchQuizData = async () => {
+      try {
+        const response = await fetch(QUIZ_ENDPOINT);
+        if (!response.ok) {
+          throw new Error("Failed to load quiz data.");
+        }
+        const payload = await response.json();
+        if (isMounted) {
+          setQuizData(normalizeQuizData(payload.data));
+        }
+      } catch (error) {
+        if (isMounted) {
+          setQuizData(defaultQuizData);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchQuizData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -215,9 +238,25 @@ export default function BeatTheEditor() {
     setShowConfetti(false);
   };
 
-  const handleAdminSave = (nextData) => {
-    localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(nextData));
-    resetGameState(nextData);
+  const handleAdminSave = async (nextData, passcode) => {
+    const response = await fetch(PUBLISH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        passcode,
+        quiz: nextData,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      throw new Error(errorPayload.message || "Failed to publish quiz data.");
+    }
+
+    const payload = await response.json();
+    resetGameState(normalizeQuizData(payload.data || nextData));
   };
 
   const handleAdminExit = () => {
@@ -323,17 +362,7 @@ export default function BeatTheEditor() {
     analytics.logAction("share_results", { score }, roundIndex);
   };
 
-  if (viewMode === "admin") {
-    return (
-      <AdminPanel
-        data={quizData}
-        onSave={handleAdminSave}
-        onExit={handleAdminExit}
-      />
-    );
-  }
-
-  if (!quizData) {
+  if (loading) {
     return (
       <>
         <div className="flex justify-center items-center h-64">
@@ -342,6 +371,16 @@ export default function BeatTheEditor() {
         {tutorialModal}
         <DisclaimerFooter />
       </>
+    );
+  }
+
+  if (viewMode === "admin") {
+    return (
+      <AdminPanel
+        data={quizData}
+        onSave={handleAdminSave}
+        onExit={handleAdminExit}
+      />
     );
   }
 
