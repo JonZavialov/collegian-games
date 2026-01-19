@@ -652,6 +652,13 @@ export default function TimeMachine() {
           >
             <Info size={14} /> How to play
           </button>
+          <button
+            type="button"
+            onClick={() => analytics.logFeedback()}
+            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+          >
+            Feedback
+          </button>
           <div className="bg-white px-5 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
             <Trophy size={18} /> Streak: {score}
           </div>

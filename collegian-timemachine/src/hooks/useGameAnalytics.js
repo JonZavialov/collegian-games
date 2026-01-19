@@ -80,6 +80,13 @@ const useGameAnalytics = (gameId, roundIndex = 0) => {
     [logEvent]
   );
 
+  const logFeedback = useCallback(
+    (metadata = {}, roundIndexOverride) => {
+      logEvent("show_feedback", metadata, roundIndexOverride);
+    },
+    [logEvent]
+  );
+
   return useMemo(
     () => ({
       logStart,
@@ -87,8 +94,9 @@ const useGameAnalytics = (gameId, roundIndex = 0) => {
       logLoss,
       logAction,
       logContentClick,
+      logFeedback,
     }),
-    [logAction, logContentClick, logLoss, logStart, logWin]
+    [logAction, logContentClick, logFeedback, logLoss, logStart, logWin]
   );
 };
 
