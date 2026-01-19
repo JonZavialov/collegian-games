@@ -434,6 +434,13 @@ export default function Redacted() {
           >
             <Info size={14} /> How to play
           </button>
+          <button
+            type="button"
+            onClick={() => analytics.logFeedback()}
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
+          >
+            Feedback
+          </button>
           <div
             className={`bg-white px-3 py-1.5 rounded-full shadow-sm font-bold border flex items-center gap-1.5 transition-colors ${
               lives === 0

@@ -82,7 +82,14 @@ function Game({ solution, hint, articleUrl, reset }) {
   const [showHint, setShowHint] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
-  const { logAction, logContentClick, logLoss, logStart, logWin } =
+  const {
+    logAction,
+    logContentClick,
+    logFeedback,
+    logLoss,
+    logStart,
+    logWin,
+  } =
     useGameAnalytics("valley-vocab", roundIndex);
   const tutorialStorageKey = "valley-vocab_tutorial_dismissed";
   const handleGuessCapture = useCallback(
@@ -270,13 +277,22 @@ function Game({ solution, hint, articleUrl, reset }) {
         <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue tracking-tighter">
           Valley Vocab
         </h1>
-        <button
-          type="button"
-          onClick={openTutorial}
-          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
-        >
-          How to play
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={openTutorial}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+          >
+            How to play
+          </button>
+          <button
+            type="button"
+            onClick={() => logFeedback()}
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+          >
+            Feedback
+          </button>
+        </div>
       </div>
 
       <div className="w-full max-w-md overflow-x-auto">
