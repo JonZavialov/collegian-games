@@ -14,7 +14,6 @@ import {
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 import AdminPanel from "./components/AdminPanel";
-import { defaultQuizData } from "./data/defaultQuizData";
 import { normalizeQuizData } from "./utils/quizData";
 
 const ADMIN_QUERY_KEY = "admin";
@@ -45,7 +44,8 @@ const toWeekKey = (info) => `${info.year}-W${info.week}`;
 
 export default function BeatTheEditor() {
   const [loading, setLoading] = useState(true);
-  const [quizData, setQuizData] = useState(defaultQuizData);
+  const [quizData, setQuizData] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [gameState, setGameState] = useState("intro");
   const [viewMode, setViewMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,10 +86,12 @@ export default function BeatTheEditor() {
         const payload = await response.json();
         if (isMounted) {
           setQuizData(normalizeQuizData(payload.data));
+          setLoadError("");
         }
       } catch (error) {
         if (isMounted) {
-          setQuizData(defaultQuizData);
+          setQuizData(null);
+          setLoadError("Quiz data is unavailable. Please try again later.");
         }
       } finally {
         if (isMounted) {
@@ -369,6 +371,22 @@ export default function BeatTheEditor() {
           <Loader className="animate-spin text-blue-600" />
         </div>
         {tutorialModal}
+        <DisclaimerFooter />
+      </>
+    );
+  }
+
+  if (!quizData) {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center min-h-[400px] rounded-xl bg-slate-50 p-6 text-center font-sans">
+          <h2 className="text-xl font-black text-slate-800">
+            Quiz unavailable
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {loadError || "We couldn't load this week's quiz right now."}
+          </p>
+        </div>
         <DisclaimerFooter />
       </>
     );
