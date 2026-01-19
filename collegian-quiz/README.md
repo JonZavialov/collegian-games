@@ -6,7 +6,7 @@ It covers setup, configuration for your editors (Google Sheets), analytics, and 
 
 # Beat The Editor - Weekly News Quiz
 
-"Beat The Editor" is a gamified, interactive news quiz designed for the school newspaper. It is built as a standalone React application that fetches weekly questions from the Collegian Postgres database and sends engagement analytics to PostHog.
+"Beat The Editor" is a gamified, interactive news quiz designed for the school newspaper. It is built as a standalone React application that fetches weekly questions from the Collegian Postgres database and sends engagement analytics to PostHog. If no quiz is published yet, the app will show a short unavailable message.
 
 The app is designed to be embedded via an iframe on the main news website to increase time-on-site, drive ad revenue, and traffic to articles.
 

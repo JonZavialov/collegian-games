@@ -1,5 +1,3 @@
-import { defaultQuizData } from "../data/defaultQuizData";
-
 const safeNumber = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? fallback : parsed;
@@ -20,8 +18,8 @@ export const createEmptyQuestion = () => ({
 
 export const normalizeQuizData = (data = {}) => {
   const base = {
-    editorName: data.editorName ?? defaultQuizData.editorName,
-    editorScore: safeNumber(data.editorScore, defaultQuizData.editorScore),
+    editorName: data.editorName ?? "The Editor",
+    editorScore: safeNumber(data.editorScore, 0),
     editorImageUrl: data.editorImageUrl ?? "",
     editorBlurb: data.editorBlurb ?? "",
     questions: Array.isArray(data.questions) ? data.questions : [],
@@ -45,15 +43,6 @@ export const normalizeQuizData = (data = {}) => {
       articleUrl: question.articleUrl ?? "",
     };
   });
-
-  if (questions.length === 0) {
-    return {
-      ...base,
-      questions: defaultQuizData.questions.map((question) => ({
-        ...question,
-      })),
-    };
-  }
 
   return {
     ...base,
