@@ -220,10 +220,6 @@ export default function BeatTheEditor() {
     resetGameState(nextData);
   };
 
-  const handleAdminPreview = (nextData) => {
-    resetGameState(nextData);
-  };
-
   const handleAdminExit = () => {
     setAdminQuery(false);
     setViewMode("game");
@@ -332,7 +328,6 @@ export default function BeatTheEditor() {
       <AdminPanel
         data={quizData}
         onSave={handleAdminSave}
-        onPreview={handleAdminPreview}
         onExit={handleAdminExit}
       />
     );
