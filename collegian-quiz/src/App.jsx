@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Confetti from "react-confetti";
-import Papa from "papaparse";
 import {
-  Trophy,
   ArrowRight,
   Share2,
   ExternalLink,
@@ -14,14 +12,26 @@ import {
 } from "lucide-react";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
+import AdminPanel from "./components/AdminPanel";
+import { normalizeQuizData } from "./utils/quizData";
 
-// REPLACE WITH YOUR PUBLISHED CSV LINK
-const GOOGLE_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS3oYKiXAYFCy7osf9f0OjhuL2doMz14bmrugOP7ZPEqkYHA5JBTqgJF8svCDIlSU9y6fPj_rnrwAkf/pub?gid=0&single=true&output=csv";
+const ADMIN_QUERY_KEY = "admin";
+const QUIZ_ENDPOINT = "/.netlify/functions/get-quiz";
+const PUBLISH_ENDPOINT = "/.netlify/functions/publish-quiz";
+
+const setAdminQuery = (enabled) => {
+  const url = new URL(window.location.href);
+  if (enabled) {
+    url.searchParams.set(ADMIN_QUERY_KEY, "1");
+  } else {
+    url.searchParams.delete(ADMIN_QUERY_KEY);
+  }
+  window.history.replaceState({}, "", url);
+};
 
 const getWeekInfo = (date) => {
   const weekDate = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
   weekDate.setUTCDate(weekDate.getUTCDate() + 4 - (weekDate.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(weekDate.getUTCFullYear(), 0, 1));
@@ -34,7 +44,12 @@ const toWeekKey = (info) => `${info.year}-W${info.week}`;
 export default function BeatTheEditor() {
   const [loading, setLoading] = useState(true);
   const [quizData, setQuizData] = useState(null);
+  const [loadError, setLoadError] = useState("");
   const [gameState, setGameState] = useState("intro");
+  const [viewMode, setViewMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(ADMIN_QUERY_KEY) === "1" ? "admin" : "game";
+  });
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
@@ -52,79 +67,43 @@ export default function BeatTheEditor() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const tutorialStorageKey = "beat-the-editor_tutorial_dismissed";
 
-  // 1. FETCH DATA & HANDLE STREAKS
   useEffect(() => {
     // Load Streak from Local Storage
     const savedStreak = parseInt(localStorage.getItem("newsGameStreak") || "0");
     setStreak(savedStreak);
+  }, []);
 
-    Papa.parse(GOOGLE_SHEET_URL, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const rawRows = results.data;
-        if (rawRows.length > 0) {
-          // --- ROBUST HEADER FINDER ---
-          const headers = Object.keys(rawRows[0]);
+  useEffect(() => {
+    let isMounted = true;
 
-          const findKey = (search) =>
-            headers.find((h) =>
-              h.toLowerCase().replace(/\s/g, "").includes(search.toLowerCase())
-            );
-
-          const editorScoreKey = findKey("editorscore");
-          const editorRow = rawRows[0];
-
-          const editorName =
-            editorRow.EditorName || editorRow["Editor Name"] || "The Editor";
-          const editorScore = parseInt(editorRow[editorScoreKey] || "0");
-          const editorImageKey = findKey("editorimage");
-          const editorBlurbKey = findKey("editorblurb");
-          const editorImageUrl = editorImageKey
-            ? editorRow[editorImageKey]
-            : null;
-          const editorBlurb = editorBlurbKey ? editorRow[editorBlurbKey] : null;
-
-          const processedQuestions = rawRows
-            .map((row, index) => {
-              if (!row.Question && !row.question) return null;
-
-              const correctKey = findKey("correct") || findKey("answer");
-              const rawCorrect = row[correctKey];
-              const cleanCorrect = parseInt(
-                rawCorrect ? rawCorrect.toString().trim() : -1
-              );
-
-              return {
-                id: index,
-                text: row.Question || row.question,
-                options: [
-                  row[findKey("option1")],
-                  row[findKey("option2")],
-                  row[findKey("option3")],
-                  row[findKey("option4")],
-                ],
-                correct: isNaN(cleanCorrect) ? 0 : cleanCorrect,
-                blurb: row.Blurb || row.blurb,
-                articleUrl: row.ArticleURL || row.articleUrl,
-                articleTitle:
-                  row.ArticleTitle || row.articleTitle || "Read Story",
-              };
-            })
-            .filter((q) => q !== null);
-
-          setQuizData({
-            editorName,
-            editorScore,
-            editorImageUrl,
-            editorBlurb,
-            questions: processedQuestions,
-          });
+    const fetchQuizData = async () => {
+      try {
+        const response = await fetch(QUIZ_ENDPOINT);
+        if (!response.ok) {
+          throw new Error("Failed to load quiz data.");
+        }
+        const payload = await response.json();
+        if (isMounted) {
+          setQuizData(normalizeQuizData(payload.data));
+          setLoadError("");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setQuizData(null);
+          setLoadError("Quiz data is unavailable. Please try again later.");
+        }
+      } finally {
+        if (isMounted) {
           setLoading(false);
         }
-      },
-    });
+      }
+    };
+
+    fetchQuizData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -155,9 +134,7 @@ export default function BeatTheEditor() {
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
                 Quick Tutorial
               </p>
-              <h2 className="text-2xl font-black">
-                How to beat the editor
-              </h2>
+              <h2 className="text-2xl font-black">How to beat the editor</h2>
               <p className="mt-2 text-sm text-blue-100">
                 Answer weekly news questions and outscore the editor&apos;s
                 benchmark.
@@ -198,8 +175,8 @@ export default function BeatTheEditor() {
                 3
               </span>
               <p>
-                At the end, compare your score to the editor&apos;s score to
-                see if you won.
+                At the end, compare your score to the editor&apos;s score to see
+                if you won.
               </p>
             </div>
           </div>
@@ -236,6 +213,43 @@ export default function BeatTheEditor() {
     </button>
   );
 
+  const resetGameState = (nextData) => {
+    setQuizData(nextData);
+    setGameState("intro");
+    setCurrentQ(0);
+    setScore(0);
+    setUserAnswers([]);
+    setSelectedOption(null);
+    setAnswerStatus(null);
+    setShowConfetti(false);
+  };
+
+  const handleAdminSave = async (nextData) => {
+    const response = await fetch(PUBLISH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        quiz: nextData,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      throw new Error(errorPayload.message || "Failed to publish quiz data.");
+    }
+
+    const payload = await response.json();
+    resetGameState(normalizeQuizData(payload.data || nextData));
+  };
+
+  const handleAdminExit = () => {
+    setAdminQuery(false);
+    setViewMode("game");
+  };
+
   // 2. HANDLE NEXT QUESTION (Manual or Auto)
   const advanceGame = (finalScore) => {
     setSelectedOption(null);
@@ -263,7 +277,7 @@ export default function BeatTheEditor() {
         is_correct: isCorrect,
         question_text: quizData.questions[currentQ].text,
       },
-      currentQ + 1
+      currentQ + 1,
     );
 
     setUserAnswers([
@@ -334,7 +348,7 @@ export default function BeatTheEditor() {
     analytics.logAction("share_results", { score }, roundIndex);
   };
 
-  if (loading)
+  if (loading) {
     return (
       <>
         <div className="flex justify-center items-center h-64">
@@ -344,6 +358,33 @@ export default function BeatTheEditor() {
         <DisclaimerFooter />
       </>
     );
+  }
+
+  if (!quizData) {
+    return (
+      <>
+        <div className="flex flex-col items-center justify-center min-h-[400px] rounded-xl bg-slate-50 p-6 text-center font-sans">
+          <h2 className="text-xl font-black text-slate-800">
+            Quiz unavailable
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            {loadError || "We couldn't load this week's quiz right now."}
+          </p>
+        </div>
+        <DisclaimerFooter />
+      </>
+    );
+  }
+
+  if (viewMode === "admin") {
+    return (
+      <AdminPanel
+        data={quizData}
+        onSave={handleAdminSave}
+        onExit={handleAdminExit}
+      />
+    );
+  }
 
   // --- VIEW 1: INTRO ---
   if (gameState === "intro") {
@@ -368,7 +409,9 @@ export default function BeatTheEditor() {
                   YOU
                 </div>
               </div>
-              <div className="text-3xl font-black text-slate-300 italic">VS</div>
+              <div className="text-3xl font-black text-slate-300 italic">
+                VS
+              </div>
               <div className="flex flex-col items-center">
                 <div className="w-14 h-14 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-lg mb-2 shadow-lg overflow-hidden">
                   {quizData.editorImageUrl ? (
@@ -494,12 +537,12 @@ export default function BeatTheEditor() {
                       onClick={() =>
                         analytics.logContentClick(
                           {
-                          article_title: question.articleTitle,
-                          destination_url: question.articleUrl,
-                          source_question: question.text,
-                          context: "wrong_answer_feedback",
+                            article_title: question.articleTitle,
+                            destination_url: question.articleUrl,
+                            source_question: question.text,
+                            context: "wrong_answer_feedback",
                           },
-                          currentQ + 1
+                          currentQ + 1,
                         )
                       }
                       className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-3 py-2 rounded shadow-sm"
@@ -548,8 +591,8 @@ export default function BeatTheEditor() {
               {userWon
                 ? "VICTORY!"
                 : score === quizData.editorScore
-                ? "DRAW!"
-                : "DEFEAT!"}
+                  ? "DRAW!"
+                  : "DEFEAT!"}
             </h2>
             <p className="text-slate-600 text-lg">
               You: <span className="font-bold text-blue-600">{score}</span> —
@@ -600,11 +643,11 @@ export default function BeatTheEditor() {
                         onClick={() =>
                           analytics.logContentClick(
                             {
-                            article_title: q.articleTitle,
-                            destination_url: q.articleUrl,
-                            source_question: q.text,
+                              article_title: q.articleTitle,
+                              destination_url: q.articleUrl,
+                              source_question: q.text,
                             },
-                            idx + 1
+                            idx + 1,
                           )
                         }
                         className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-blue-50 px-2 py-1 rounded"
