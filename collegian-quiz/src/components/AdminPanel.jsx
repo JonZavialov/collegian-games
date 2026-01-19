@@ -4,7 +4,6 @@ import {
   ArrowUp,
   Copy,
   Download,
-  Eye,
   KeyRound,
   Lock,
   LogOut,
@@ -56,7 +55,6 @@ const questionHasIssues = (question) => {
 export default function AdminPanel({
   data,
   onSave,
-  onPreview,
   onExit,
 }) {
   const [draftData, setDraftData] = useState(() => cloneData(data));
@@ -200,12 +198,6 @@ export default function AdminPanel({
     setTimeout(() => setStatusMessage(""), 3500);
   };
 
-  const handlePreview = () => {
-    onPreview(normalizeQuizData(draftData));
-    setStatusMessage("Preview loaded. Switch to Play mode to test.");
-    setTimeout(() => setStatusMessage(""), 3500);
-  };
-
   const handleExport = () => {
     const payload = JSON.stringify(draftData, null, 2);
     navigator.clipboard.writeText(payload);
@@ -337,13 +329,6 @@ export default function AdminPanel({
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={handlePreview}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-600 shadow-sm hover:border-blue-200 hover:text-blue-600"
-            >
-              <Eye size={16} /> Preview
-            </button>
-            <button
-              type="button"
               onClick={handleSave}
               className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-blue-200 hover:bg-blue-500"
             >
@@ -358,6 +343,11 @@ export default function AdminPanel({
             </button>
           </div>
         </div>
+        {hasChanges && (
+          <div className="border-t border-amber-200 bg-amber-50 px-6 py-3 text-sm font-semibold text-amber-800">
+            You have unsaved changes. Publish to update the live quiz.
+          </div>
+        )}
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 lg:flex-row">
