@@ -31,7 +31,7 @@ const setAdminQuery = (enabled) => {
 
 const getWeekInfo = (date) => {
   const weekDate = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
   weekDate.setUTCDate(weekDate.getUTCDate() + 4 - (weekDate.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(weekDate.getUTCFullYear(), 0, 1));
@@ -134,9 +134,7 @@ export default function BeatTheEditor() {
               <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
                 Quick Tutorial
               </p>
-              <h2 className="text-2xl font-black">
-                How to beat the editor
-              </h2>
+              <h2 className="text-2xl font-black">How to beat the editor</h2>
               <p className="mt-2 text-sm text-blue-100">
                 Answer weekly news questions and outscore the editor&apos;s
                 benchmark.
@@ -177,8 +175,8 @@ export default function BeatTheEditor() {
                 3
               </span>
               <p>
-                At the end, compare your score to the editor&apos;s score to
-                see if you won.
+                At the end, compare your score to the editor&apos;s score to see
+                if you won.
               </p>
             </div>
           </div>
@@ -279,7 +277,7 @@ export default function BeatTheEditor() {
         is_correct: isCorrect,
         question_text: quizData.questions[currentQ].text,
       },
-      currentQ + 1
+      currentQ + 1,
     );
 
     setUserAnswers([
@@ -411,7 +409,9 @@ export default function BeatTheEditor() {
                   YOU
                 </div>
               </div>
-              <div className="text-3xl font-black text-slate-300 italic">VS</div>
+              <div className="text-3xl font-black text-slate-300 italic">
+                VS
+              </div>
               <div className="flex flex-col items-center">
                 <div className="w-14 h-14 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-lg mb-2 shadow-lg overflow-hidden">
                   {quizData.editorImageUrl ? (
@@ -537,12 +537,12 @@ export default function BeatTheEditor() {
                       onClick={() =>
                         analytics.logContentClick(
                           {
-                          article_title: question.articleTitle,
-                          destination_url: question.articleUrl,
-                          source_question: question.text,
-                          context: "wrong_answer_feedback",
+                            article_title: question.articleTitle,
+                            destination_url: question.articleUrl,
+                            source_question: question.text,
+                            context: "wrong_answer_feedback",
                           },
-                          currentQ + 1
+                          currentQ + 1,
                         )
                       }
                       className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-3 py-2 rounded shadow-sm"
@@ -591,8 +591,8 @@ export default function BeatTheEditor() {
               {userWon
                 ? "VICTORY!"
                 : score === quizData.editorScore
-                ? "DRAW!"
-                : "DEFEAT!"}
+                  ? "DRAW!"
+                  : "DEFEAT!"}
             </h2>
             <p className="text-slate-600 text-lg">
               You: <span className="font-bold text-blue-600">{score}</span> —
@@ -643,11 +643,11 @@ export default function BeatTheEditor() {
                         onClick={() =>
                           analytics.logContentClick(
                             {
-                            article_title: q.articleTitle,
-                            destination_url: q.articleUrl,
-                            source_question: q.text,
+                              article_title: q.articleTitle,
+                              destination_url: q.articleUrl,
+                              source_question: q.text,
                             },
-                            idx + 1
+                            idx + 1,
                           )
                         }
                         className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-blue-50 px-2 py-1 rounded"
