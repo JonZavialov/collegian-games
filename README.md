@@ -30,6 +30,34 @@ npm run build
 
 > 📌 Note: Some games depend on RSS feeds, Google Sheets, or PostHog analytics keys. See each game’s README for configuration details, environment variables, and deployment instructions.
 
+## 📰 Article data pipeline (RSS replacement)
+
+The repo now includes a scraper and GitHub Action that keep article data up to date without relying on live RSS reads in the games:
+
+- **`scraper.py`** pulls batches of article data from the Collegian RSS search endpoint, normalizes it, and writes two outputs:
+  - **Postgres sync**: Inserts/updates rows in the `articles` table (by `guid`) with title, content, author, publish date, URL, and image URL.
+  - **`articles.json` backup**: A JSON snapshot committed to the repo as a fallback data source.
+- **`Refresh Article Data` workflow** (`.github/workflows/scrape.yml`) runs on a 6‑hour cron (and via manual dispatch). It installs dependencies, runs `scraper.py`, and commits any changes to `articles.json`.
+
+### Local usage
+
+To run the scraper locally, set the database environment variables (or put them in a `.env` file) and run:
+
+```bash
+python scraper.py
+```
+
+Required env vars (used in CI as GitHub Secrets):
+
+```
+DB_HOST
+DB_NAME
+DB_USER
+DB_PASSWORD
+```
+
+> The workflow also supports `DB_PORT` (defaults to `5432`).
+
 ## 📂 Repo structure
 
 ```text
