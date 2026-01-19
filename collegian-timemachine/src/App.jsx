@@ -20,14 +20,14 @@ import "react-pdf/dist/Page/TextLayer.css";
 // ✅ PDF WORKER SETUP
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
+  import.meta.url,
 ).toString();
 
 // CONFIGURATION
 const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
-const MAX_PAGE_PROBE = 64;
+const MAX_PAGE_PROBE = 10;
 
 const getRandomDate = () => {
   const start = new Date(`${START_YEAR}-09-05`);
@@ -35,7 +35,7 @@ const getRandomDate = () => {
   let date;
   do {
     date = new Date(
-      start.getTime() + Math.random() * (end.getTime() - start.getTime())
+      start.getTime() + Math.random() * (end.getTime() - start.getTime()),
     );
   } while (date.getDay() === 0 || date.getDay() === 6);
 
@@ -175,7 +175,7 @@ export default function TimeMachine() {
           pages_viewed: pageNumber,
           score: score,
         },
-        pageNumber
+        pageNumber,
       );
     }
   }, [analytics, pageNumber, score, targetDate?.full, targetDate?.year]);
@@ -196,7 +196,7 @@ export default function TimeMachine() {
         result: isWin ? "win" : "miss",
         page_number: pageNumber,
       },
-      pageNumber
+      pageNumber,
     );
 
     // WIN CONDITION: +/- 2 Years
@@ -211,13 +211,13 @@ export default function TimeMachine() {
           streak: score + 1,
           target_year: targetDate.year,
         },
-        pageNumber
+        pageNumber,
       );
     } else {
       // WRONG GUESS UX
       setShake(true);
       setFeedbackMsg(
-        `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`
+        `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`,
       );
 
       setTimeout(() => setShake(false), 500);
@@ -235,7 +235,7 @@ export default function TimeMachine() {
       targetDate
         ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${page}.pdf`
         : null,
-    [targetDate]
+    [targetDate],
   );
 
   useEffect(() => {
@@ -331,9 +331,7 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
-    const baseScale = pdfViewportWidth
-      ? pdfViewportWidth / viewport.width
-      : 1;
+    const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
     const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
     textContent.items.forEach((item) => {
@@ -412,7 +410,7 @@ export default function TimeMachine() {
 
         if (response.status === 403 || response.status === 429) {
           setArchiveError(
-            "The Archives are currently experiencing high traffic. Please try again later."
+            "The Archives are currently experiencing high traffic. Please try again later.",
           );
           setLoading(false);
           return;
@@ -438,7 +436,7 @@ export default function TimeMachine() {
         }
         console.error("Failed to fetch PDF:", error);
         setArchiveError(
-          "We couldn't load this issue right now. Please try again."
+          "We couldn't load this issue right now. Please try again.",
         );
         setLoading(false);
       }
@@ -496,8 +494,9 @@ export default function TimeMachine() {
         prefetchedPdfUrlsRef.current.set(nextPage, objectUrl);
 
         if (prefetchedPdfUrlsRef.current.size > 2) {
-          const [oldestPage, oldestUrl] =
-            prefetchedPdfUrlsRef.current.entries().next().value;
+          const [oldestPage, oldestUrl] = prefetchedPdfUrlsRef.current
+            .entries()
+            .next().value;
           prefetchedPdfUrlsRef.current.delete(oldestPage);
           URL.revokeObjectURL(oldestUrl);
         }
@@ -564,8 +563,8 @@ export default function TimeMachine() {
                     2
                   </span>
                   <p>
-                    Slide the year picker to your best guess and lock it in.
-                    You win if you&apos;re within ±2 years.
+                    Slide the year picker to your best guess and lock it in. You
+                    win if you&apos;re within ±2 years.
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -684,8 +683,8 @@ export default function TimeMachine() {
                 {isPageCountLoading
                   ? "Counting total pages..."
                   : totalPages
-                  ? `Total pages available: ${totalPages}`
-                  : "Total pages unavailable for this issue."}
+                    ? `Total pages available: ${totalPages}`
+                    : "Total pages unavailable for this issue."}
               </p>
             )}
           </div>
@@ -811,9 +810,7 @@ export default function TimeMachine() {
               <span className="font-bold text-slate-800">Zoom</span>
               <button
                 type="button"
-                onClick={() =>
-                  setZoomLevel((prev) => Math.max(1, prev - 0.25))
-                }
+                onClick={() => setZoomLevel((prev) => Math.max(1, prev - 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 -
@@ -823,9 +820,7 @@ export default function TimeMachine() {
               </span>
               <button
                 type="button"
-                onClick={() =>
-                  setZoomLevel((prev) => Math.min(3, prev + 0.25))
-                }
+                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 +
@@ -909,15 +904,15 @@ export default function TimeMachine() {
                   {archiveError
                     ? "Archives are temporarily unavailable."
                     : gameState === "lost"
-                    ? "No more pages available for this issue."
-                    : "PDF is hidden while you review results."}
+                      ? "No more pages available for this issue."
+                      : "PDF is hidden while you review results."}
                 </p>
                 <p>
                   {archiveError
                     ? "Please try again later or visit the full archives for text-based access."
                     : gameState === "lost"
-                    ? "Use the Try Again button to start a new issue."
-                    : "Start a new game or view the full issue to keep reading."}
+                      ? "Use the Try Again button to start a new issue."
+                      : "Start a new game or view the full issue to keep reading."}
                 </p>
                 <a
                   href={originalLink}
