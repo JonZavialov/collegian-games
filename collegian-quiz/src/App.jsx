@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Confetti from "react-confetti";
-import Papa from "papaparse";
 import {
-  Trophy,
   ArrowRight,
   Share2,
   ExternalLink,
@@ -11,13 +9,36 @@ import {
   XCircle,
   X,
   Info,
+  Settings,
 } from "lucide-react";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
+import AdminPanel from "./components/AdminPanel";
+import { defaultQuizData } from "./data/defaultQuizData";
+import { normalizeQuizData } from "./utils/quizData";
 
-// REPLACE WITH YOUR PUBLISHED CSV LINK
-const GOOGLE_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vS3oYKiXAYFCy7osf9f0OjhuL2doMz14bmrugOP7ZPEqkYHA5JBTqgJF8svCDIlSU9y6fPj_rnrwAkf/pub?gid=0&single=true&output=csv";
+const QUIZ_STORAGE_KEY = "beat-the-editor_quiz_data";
+const ADMIN_QUERY_KEY = "admin";
+
+const loadStoredQuizData = () => {
+  const stored = localStorage.getItem(QUIZ_STORAGE_KEY);
+  if (!stored) return defaultQuizData;
+  try {
+    return normalizeQuizData(JSON.parse(stored));
+  } catch (error) {
+    return defaultQuizData;
+  }
+};
+
+const setAdminQuery = (enabled) => {
+  const url = new URL(window.location.href);
+  if (enabled) {
+    url.searchParams.set(ADMIN_QUERY_KEY, "1");
+  } else {
+    url.searchParams.delete(ADMIN_QUERY_KEY);
+  }
+  window.history.replaceState({}, "", url);
+};
 
 const getWeekInfo = (date) => {
   const weekDate = new Date(
@@ -32,9 +53,12 @@ const getWeekInfo = (date) => {
 const toWeekKey = (info) => `${info.year}-W${info.week}`;
 
 export default function BeatTheEditor() {
-  const [loading, setLoading] = useState(true);
-  const [quizData, setQuizData] = useState(null);
+  const [quizData, setQuizData] = useState(() => loadStoredQuizData());
   const [gameState, setGameState] = useState("intro");
+  const [viewMode, setViewMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(ADMIN_QUERY_KEY) === "1" ? "admin" : "game";
+  });
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
@@ -52,79 +76,10 @@ export default function BeatTheEditor() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const tutorialStorageKey = "beat-the-editor_tutorial_dismissed";
 
-  // 1. FETCH DATA & HANDLE STREAKS
   useEffect(() => {
     // Load Streak from Local Storage
     const savedStreak = parseInt(localStorage.getItem("newsGameStreak") || "0");
     setStreak(savedStreak);
-
-    Papa.parse(GOOGLE_SHEET_URL, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const rawRows = results.data;
-        if (rawRows.length > 0) {
-          // --- ROBUST HEADER FINDER ---
-          const headers = Object.keys(rawRows[0]);
-
-          const findKey = (search) =>
-            headers.find((h) =>
-              h.toLowerCase().replace(/\s/g, "").includes(search.toLowerCase())
-            );
-
-          const editorScoreKey = findKey("editorscore");
-          const editorRow = rawRows[0];
-
-          const editorName =
-            editorRow.EditorName || editorRow["Editor Name"] || "The Editor";
-          const editorScore = parseInt(editorRow[editorScoreKey] || "0");
-          const editorImageKey = findKey("editorimage");
-          const editorBlurbKey = findKey("editorblurb");
-          const editorImageUrl = editorImageKey
-            ? editorRow[editorImageKey]
-            : null;
-          const editorBlurb = editorBlurbKey ? editorRow[editorBlurbKey] : null;
-
-          const processedQuestions = rawRows
-            .map((row, index) => {
-              if (!row.Question && !row.question) return null;
-
-              const correctKey = findKey("correct") || findKey("answer");
-              const rawCorrect = row[correctKey];
-              const cleanCorrect = parseInt(
-                rawCorrect ? rawCorrect.toString().trim() : -1
-              );
-
-              return {
-                id: index,
-                text: row.Question || row.question,
-                options: [
-                  row[findKey("option1")],
-                  row[findKey("option2")],
-                  row[findKey("option3")],
-                  row[findKey("option4")],
-                ],
-                correct: isNaN(cleanCorrect) ? 0 : cleanCorrect,
-                blurb: row.Blurb || row.blurb,
-                articleUrl: row.ArticleURL || row.articleUrl,
-                articleTitle:
-                  row.ArticleTitle || row.articleTitle || "Read Story",
-              };
-            })
-            .filter((q) => q !== null);
-
-          setQuizData({
-            editorName,
-            editorScore,
-            editorImageUrl,
-            editorBlurb,
-            questions: processedQuestions,
-          });
-          setLoading(false);
-        }
-      },
-    });
   }, []);
 
   useEffect(() => {
@@ -236,6 +191,44 @@ export default function BeatTheEditor() {
     </button>
   );
 
+  const adminButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setAdminQuery(true);
+        setViewMode("admin");
+      }}
+      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+    >
+      <Settings size={14} /> Admin
+    </button>
+  );
+
+  const resetGameState = (nextData) => {
+    setQuizData(nextData);
+    setGameState("intro");
+    setCurrentQ(0);
+    setScore(0);
+    setUserAnswers([]);
+    setSelectedOption(null);
+    setAnswerStatus(null);
+    setShowConfetti(false);
+  };
+
+  const handleAdminSave = (nextData) => {
+    localStorage.setItem(QUIZ_STORAGE_KEY, JSON.stringify(nextData));
+    resetGameState(nextData);
+  };
+
+  const handleAdminPreview = (nextData) => {
+    resetGameState(nextData);
+  };
+
+  const handleAdminExit = () => {
+    setAdminQuery(false);
+    setViewMode("game");
+  };
+
   // 2. HANDLE NEXT QUESTION (Manual or Auto)
   const advanceGame = (finalScore) => {
     setSelectedOption(null);
@@ -334,7 +327,18 @@ export default function BeatTheEditor() {
     analytics.logAction("share_results", { score }, roundIndex);
   };
 
-  if (loading)
+  if (viewMode === "admin") {
+    return (
+      <AdminPanel
+        data={quizData}
+        onSave={handleAdminSave}
+        onPreview={handleAdminPreview}
+        onExit={handleAdminExit}
+      />
+    );
+  }
+
+  if (!quizData) {
     return (
       <>
         <div className="flex justify-center items-center h-64">
@@ -344,6 +348,7 @@ export default function BeatTheEditor() {
         <DisclaimerFooter />
       </>
     );
+  }
 
   // --- VIEW 1: INTRO ---
   if (gameState === "intro") {
@@ -351,6 +356,7 @@ export default function BeatTheEditor() {
       <>
         <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans relative">
           {tutorialModal}
+          <div className="absolute top-4 left-4">{adminButton}</div>
           <div className="absolute top-4 right-4">{tutorialButton}</div>
           {streak > 0 && (
             <div className="mb-4 flex items-center gap-1 text-orange-500 font-bold bg-orange-100 px-3 py-1 rounded-full text-xs uppercase tracking-wide">
@@ -423,6 +429,7 @@ export default function BeatTheEditor() {
       <>
         <div className="min-h-[400px] bg-white p-6 rounded-xl max-w-md mx-auto relative">
           {tutorialModal}
+          <div className="absolute top-4 left-4">{adminButton}</div>
           <div className="absolute top-4 right-4">{tutorialButton}</div>
           <div className="absolute top-0 left-0 h-1.5 bg-slate-100 w-full">
             <div
@@ -533,6 +540,7 @@ export default function BeatTheEditor() {
       <>
         <div className="bg-slate-50 p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
           {tutorialModal}
+          <div className="absolute top-4 left-4 z-10">{adminButton}</div>
           <div className="absolute top-4 right-4 z-10">{tutorialButton}</div>
           {showConfetti && (
             <Confetti

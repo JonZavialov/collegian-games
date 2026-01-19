@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "lucide-react": "^0.562.0",
-    "papaparse": "^5.5.3",
     "posthog-js": "^1.318.1",
     "react": "^19.2.0",
     "react-confetti": "^6.4.0",
