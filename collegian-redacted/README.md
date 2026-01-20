@@ -77,11 +77,9 @@ This game uses a standardized `useGameAnalytics` hook. Key events tracked:
 src/
 ├── components/
 │   └── DisclaimerFooter.jsx  # Shared footer
-├── games/
-│   └── Redacted.jsx          # Main game logic
 ├── hooks/
 │   └── useGameAnalytics.js   # PostHog wrapper
-├── App.jsx                   # Entry point
+├── Redacted.jsx              # Main game logic
 └── main.jsx
 
 ```

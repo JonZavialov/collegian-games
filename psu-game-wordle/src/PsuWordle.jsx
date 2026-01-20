@@ -8,7 +8,7 @@ import { loadWordsFromSheet } from "./data/words";
 import { getDictionarySet } from "./data/dictionary";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 
-function App() {
+function PsuWordle() {
   const [solutionObj, setSolutionObj] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [resetToken, setResetToken] = useState(0);
@@ -71,7 +71,7 @@ function App() {
   );
 }
 
-// Separate Game component to allow easy resetting by changing the key in App
+// Separate Game component to allow easy resetting by changing the key in PsuWordle
 function Game({ solution, hint, articleUrl, reset }) {
   const dictionarySet = useMemo(
     () => getDictionarySet(solution.length),
@@ -380,4 +380,4 @@ function Game({ solution, hint, articleUrl, reset }) {
   );
 }
 
-export default App;
+export default PsuWordle;
