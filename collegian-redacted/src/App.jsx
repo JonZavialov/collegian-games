@@ -271,19 +271,17 @@ export default function Redacted() {
     setCurrentArticle(article);
 
     const cleanTitle = article.headline
-      .replace(/\|.*/, "")
       .replace(/‘|’/g, "'")
       .replace(/“|”/g, '"')
       .trim();
 
-    const tokens = cleanTitle
-      .split(/(\s+|[.,!?;:'"()])/g)
-      .filter((t) => t.length > 0);
+    const tokens =
+      cleanTitle.match(/[a-z0-9]+(?:'[a-z0-9]+)*|\s+|[.,!?:;"()]/gi) ?? [];
 
     const candidates = [];
     tokens.forEach((token, index) => {
       const lower = token.toLowerCase().trim();
-      if (/^[a-z0-9]+$/i.test(lower) && !STOP_WORDS.has(lower)) {
+      if (/^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(lower) && !STOP_WORDS.has(lower)) {
         candidates.push(index);
       }
     });
@@ -308,7 +306,9 @@ export default function Redacted() {
       text: token,
       cleanText: token.toLowerCase().trim(),
       hidden: indicesToHide.has(index),
-      isPunctuation: !/^[a-z0-9]+$/i.test(token.toLowerCase().trim()),
+      isPunctuation: !/^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(
+        token.toLowerCase().trim()
+      ),
     }));
 
     setWords(wordObjects);
