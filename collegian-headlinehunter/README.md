@@ -64,7 +64,7 @@
 
 ## ⚙️ Configuration
 
-You can customize the content source by editing the constants at the top of `src/App.jsx`.
+You can customize the content source by editing the constants at the top of `src/HeadlineHunter.jsx`.
 
 **Changing the Source:**
 Want to swap to a different database or endpoint? Update the API endpoint:

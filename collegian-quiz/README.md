@@ -112,7 +112,7 @@ _Note: If the "Results" screen is cut off on mobile, increase `min-height: 850px
 
 ## 📂 Project Structure
 
-- **`src/App.jsx`**: The core logic. Handles fetching data, game state (Intro -> Playing -> Results), and firing analytics events.
+- **`src/BeatTheEditor.jsx`**: The core logic. Handles fetching data, game state (Intro -> Playing -> Results), and firing analytics events.
 - **`src/main.jsx`**: App entry point. Initializes PostHog.
 - **`src/index.css`**: Tailwind directives and global styles.
 - **`tailwind.config.js`**: Style configuration.
