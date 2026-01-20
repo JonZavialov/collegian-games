@@ -257,7 +257,6 @@ export default function Redacted() {
     setCurrentArticle(article);
 
     const cleanTitle = article.headline
-      .replace(/\|.*/, "")
       .replace(/‘|’/g, "'")
       .replace(/“|”/g, '"')
       .trim();
