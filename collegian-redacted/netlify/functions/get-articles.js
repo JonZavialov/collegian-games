@@ -18,9 +18,10 @@ exports.handler = async (event, context) => {
     await client.connect();
     // Fetch clean articles from the last 7 days
     const result = await client.query(`
-      SELECT guid as id, title as headline, url as link, author 
+      SELECT guid as id, title as headline, url as link, author, image_url as image
       FROM articles 
       WHERE pub_date > NOW() - INTERVAL '7 days'
+      AND image_url IS NOT NULL
       ORDER BY pub_date DESC
     `);
 
