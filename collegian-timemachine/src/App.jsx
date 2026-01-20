@@ -67,6 +67,7 @@ export default function TimeMachine() {
   const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [closestGuessDiff, setClosestGuessDiff] = useState(null);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
@@ -147,6 +148,7 @@ export default function TimeMachine() {
     setZoomLevel(1);
     setPdfSource(null);
     setTotalPages(null);
+    setClosestGuessDiff(null);
 
     prefetchedPdfUrlsRef.current.forEach((url) => {
       URL.revokeObjectURL(url);
@@ -217,6 +219,9 @@ export default function TimeMachine() {
         pageNumber,
       );
     } else {
+      setClosestGuessDiff((prev) =>
+        prev === null ? diff : Math.min(prev, diff),
+      );
       if (pageNumber >= maxPageLimit) {
         setGameState("lost");
         setLoading(false);
@@ -761,6 +766,16 @@ export default function TimeMachine() {
                 <span className="font-bold text-slate-900">
                   {targetDate?.year}
                 </span>
+                {closestGuessDiff !== null && (
+                  <>
+                    <br />
+                    Closest guess:{" "}
+                    <span className="font-bold text-slate-900">
+                      {closestGuessDiff}
+                    </span>{" "}
+                    {closestGuessDiff === 1 ? "year" : "years"} off
+                  </>
+                )}
               </p>
 
               <div className="flex flex-col gap-3 px-4">
