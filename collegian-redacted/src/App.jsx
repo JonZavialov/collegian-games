@@ -262,7 +262,7 @@ export default function Redacted() {
       .trim();
 
     const tokens = cleanTitle
-      .split(/(\s+|[.,!?;:'"()])/g)
+      .split(/(\s+|[.,!?:'"()])/g)
       .filter((t) => t.length > 0);
 
     const candidates = [];
