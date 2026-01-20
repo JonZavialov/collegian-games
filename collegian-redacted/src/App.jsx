@@ -136,17 +136,31 @@ export default function Redacted() {
 
         // DB response is already clean JSON, no XML parsing needed
         const parsedItems = await response.json();
+        const cleanedItems = parsedItems
+          .map((item) => {
+            let imageUrl = item.image;
+
+            if (imageUrl && imageUrl.includes("?")) {
+              imageUrl = imageUrl.split("?")[0];
+            }
+
+            return {
+              ...item,
+              image: imageUrl,
+            };
+          })
+          .filter((item) => item.headline && item.image);
 
         sessionStorage.setItem(
           "hh_news_cache",
           JSON.stringify({
             timestamp: Date.now(),
-            data: parsedItems,
+            data: cleanedItems,
           })
         );
 
-        setArticles(parsedItems);
-        setupRound(parsedItems);
+        setArticles(cleanedItems);
+        setupRound(cleanedItems);
         setLoading(false);
       } catch (err) {
         console.error(err);
@@ -457,9 +471,20 @@ export default function Redacted() {
       </div>
 
       <div className="max-w-2xl mx-auto" ref={listRef}>
-        <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center relative overflow-hidden min-h-[200px] md:min-h-[300px]">
+        <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center gap-6 relative overflow-hidden min-h-[200px] md:min-h-[300px]">
           {gameState === "won" && (
             <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />
+          )}
+
+          {currentArticle?.image && (
+            <div className="w-full overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+              <img
+                src={currentArticle.image}
+                alt={currentArticle.headline}
+                className="h-48 w-full object-cover md:h-64"
+                loading="lazy"
+              />
+            </div>
           )}
 
           <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-2 text-center leading-relaxed">
