@@ -28,24 +28,6 @@ const parseCookies = (cookieHeader = "") =>
 const hashToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
-const ensureVersionsTable = async (client) => {
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS quiz_config_versions (
-      id SERIAL PRIMARY KEY,
-      slug TEXT NOT NULL,
-      data JSONB NOT NULL,
-      published_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ,
-      versioned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS quiz_config_versions_slug_versioned_idx
-    ON quiz_config_versions (slug, versioned_at DESC);
-  `);
-};
-
 exports.handler = async (event) => {
   const client = new Client({
     host: process.env.DB_HOST,
@@ -80,7 +62,7 @@ exports.handler = async (event) => {
         AND ip_address = $2
         AND expires_at > NOW()
       `,
-      [tokenHash, clientIp]
+      [tokenHash, clientIp],
     );
 
     if (sessionResult.rows.length === 0) {
@@ -90,8 +72,6 @@ exports.handler = async (event) => {
       };
     }
 
-    await ensureVersionsTable(client);
-
     const versionsResult = await client.query(
       `
       SELECT id, slug, published_at, created_at, versioned_at
@@ -100,7 +80,7 @@ exports.handler = async (event) => {
       ORDER BY versioned_at DESC
       LIMIT $2
       `,
-      [QUIZ_SLUG, MAX_VERSIONS]
+      [QUIZ_SLUG, MAX_VERSIONS],
     );
 
     return {
