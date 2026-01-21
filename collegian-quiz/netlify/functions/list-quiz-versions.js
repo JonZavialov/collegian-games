@@ -3,6 +3,7 @@ const crypto = require("crypto");
 
 const QUIZ_SLUG = "beat-the-editor";
 const SESSION_COOKIE = "quiz_admin_session";
+const MAX_VERSIONS = 50;
 
 const getClientIp = (event) => {
   const forwarded = event.headers["x-forwarded-for"];
@@ -58,20 +59,10 @@ exports.handler = async (event) => {
   });
 
   try {
-    const payload = JSON.parse(event.body || "{}");
-    const { quiz } = payload;
-    const clientIp = getClientIp(event);
-
-    if (!quiz) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ message: "Quiz payload is required." }),
-      };
-    }
-
     await client.connect();
     const cookies = parseCookies(event.headers.cookie || "");
     const token = cookies[SESSION_COOKIE];
+    const clientIp = getClientIp(event);
 
     if (!token) {
       return {
@@ -100,50 +91,23 @@ exports.handler = async (event) => {
     }
 
     await ensureVersionsTable(client);
-    await client.query("BEGIN");
 
-    const existingResult = await client.query(
+    const versionsResult = await client.query(
       `
-      SELECT data, published_at, created_at
-      FROM quiz_configs
+      SELECT id, slug, published_at, created_at, versioned_at
+      FROM quiz_config_versions
       WHERE slug = $1
+      ORDER BY versioned_at DESC
+      LIMIT $2
       `,
-      [QUIZ_SLUG]
+      [QUIZ_SLUG, MAX_VERSIONS]
     );
-
-    if (existingResult.rows.length > 0) {
-      const existing = existingResult.rows[0];
-      await client.query(
-        `
-        INSERT INTO quiz_config_versions (slug, data, published_at, created_at)
-        VALUES ($1, $2, $3, $4)
-        `,
-        [QUIZ_SLUG, existing.data, existing.published_at, existing.created_at]
-      );
-    }
-
-    const result = await client.query(
-      `
-      INSERT INTO quiz_configs (slug, data, published_at, created_at, updated_at)
-      VALUES ($1, $2, NOW(), NOW(), NOW())
-      ON CONFLICT (slug)
-      DO UPDATE SET
-        data = EXCLUDED.data,
-        published_at = EXCLUDED.published_at,
-        updated_at = NOW()
-      RETURNING data
-      `,
-      [QUIZ_SLUG, quiz]
-    );
-
-    await client.query("COMMIT");
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ data: result.rows[0].data }),
+      body: JSON.stringify({ versions: versionsResult.rows }),
     };
   } catch (error) {
-    await client.query("ROLLBACK");
     return {
       statusCode: 500,
       body: JSON.stringify({ message: error.message }),
