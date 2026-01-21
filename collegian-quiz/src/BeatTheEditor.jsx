@@ -255,6 +255,10 @@ export default function BeatTheEditor() {
     resetGameState(normalizeQuizData(payload.data || nextData));
   };
 
+  const handleAdminRestore = (nextData) => {
+    resetGameState(normalizeQuizData(nextData));
+  };
+
   const handleAdminExit = () => {
     setAdminQuery(false);
     setViewMode("game");
@@ -392,6 +396,7 @@ export default function BeatTheEditor() {
         data={quizData}
         onSave={handleAdminSave}
         onExit={handleAdminExit}
+        onRestore={handleAdminRestore}
       />
     );
   }
