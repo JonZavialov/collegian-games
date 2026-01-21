@@ -60,6 +60,10 @@ Admin login is protected by an IP-based lockout (5 attempts in 15 minutes trigge
 
 Open the game with `?admin=1` appended to the URL, sign in with the admin passcode, and press **Publish**. Successful login creates a short-lived, HttpOnly session cookie; publish requests require that session and are rejected without it.
 
+### 5. Restore a previous version
+
+Open the same admin view (`?admin=1`). In the **Version history** section, use **Restore** to roll back to a previous publish. Restoring immediately swaps the live quiz and also snapshots the current version so you can undo a restore if needed.
+
 ---
 
 ## 📊 Analytics (PostHog)
