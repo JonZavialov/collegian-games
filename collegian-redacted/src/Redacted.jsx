@@ -223,7 +223,8 @@ export default function Redacted() {
                 1
               </span>
               <p>
-                Type a missing word and press enter to reveal matching blanks.
+                Guess a letter to reveal it everywhere, or type a full word to
+                solve that blank.
               </p>
             </div>
             <div className="flex gap-3">
@@ -231,7 +232,8 @@ export default function Redacted() {
                 2
               </span>
               <p>
-                Each wrong guess costs a heart. Reveal every hidden word to win.
+                Wrong letters or words cost a heart. Reveal every hidden word to
+                win.
               </p>
             </div>
             <div className="flex gap-3">
@@ -301,15 +303,25 @@ export default function Redacted() {
       attempts++;
     }
 
-    const wordObjects = tokens.map((token, index) => ({
-      id: index,
-      text: token,
-      cleanText: token.toLowerCase().trim(),
-      hidden: indicesToHide.has(index),
-      isPunctuation: !/^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(
+    const wordObjects = tokens.map((token, index) => {
+      const isWord = /^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(
         token.toLowerCase().trim()
-      ),
-    }));
+      );
+      const hidden = indicesToHide.has(index);
+      const revealedMap = hidden
+        ? token.split("").map((char) => !/[a-z0-9]/i.test(char))
+        : [];
+
+      return {
+        id: index,
+        text: token,
+        cleanText: token.toLowerCase().trim(),
+        hidden,
+        revealedMap,
+        justRevealedIndices: [],
+        isPunctuation: !isWord,
+      };
+    });
 
     setWords(wordObjects);
     setLives(5);
@@ -329,27 +341,91 @@ export default function Redacted() {
     if (gameState !== "playing" || !guess.trim()) return;
 
     const currentGuess = guess.toLowerCase().trim();
+    const isLetterGuess = /^[a-z]$/i.test(currentGuess);
     let found = false;
 
-    const newWords = words.map((w) => {
-      if (w.hidden && w.cleanText === currentGuess) {
-        found = true;
-        return { ...w, hidden: false, justRevealed: true };
+    const newWords = words.map((word) => {
+      if (!word.hidden) {
+        return { ...word, justRevealed: false, justRevealedIndices: [] };
       }
-      return { ...w, justRevealed: false };
+
+      if (isLetterGuess) {
+        const characters = word.text.split("");
+        const updatedMap =
+          word.revealedMap.length > 0
+            ? [...word.revealedMap]
+            : characters.map((char) => !/[a-z0-9]/i.test(char));
+        const newlyRevealedIndices = [];
+
+        characters.forEach((char, index) => {
+          if (
+            /[a-z0-9]/i.test(char) &&
+            char.toLowerCase() === currentGuess &&
+            !updatedMap[index]
+          ) {
+            updatedMap[index] = true;
+            newlyRevealedIndices.push(index);
+          }
+        });
+
+        if (newlyRevealedIndices.length > 0) {
+          found = true;
+        }
+
+        const fullyRevealed = characters.every(
+          (char, index) =>
+            !/[a-z0-9]/i.test(char) || updatedMap[index] === true
+        );
+
+        if (fullyRevealed) {
+          return {
+            ...word,
+            hidden: false,
+            revealedMap: updatedMap,
+            justRevealed: true,
+            justRevealedIndices: [],
+          };
+        }
+
+        return {
+          ...word,
+          revealedMap: updatedMap,
+          justRevealed: false,
+          justRevealedIndices: newlyRevealedIndices,
+        };
+      }
+
+      if (word.cleanText === currentGuess) {
+        found = true;
+        return {
+          ...word,
+          hidden: false,
+          justRevealed: true,
+          justRevealedIndices: [],
+        };
+      }
+
+      return { ...word, justRevealed: false, justRevealedIndices: [] };
     });
 
     if (found) {
       setWords(newWords);
       setGuess("");
-      analytics.logAction("guess_correct", { word: currentGuess }, roundIndex);
+      analytics.logAction(
+        "guess_correct",
+        { guess: currentGuess, type: isLetterGuess ? "letter" : "word" },
+        roundIndex
+      );
 
       const remaining = newWords.filter((w) => w.hidden).length;
       if (remaining === 0) {
         handleWin();
       }
     } else {
-      handleLossAttempt();
+      handleLossAttempt({
+        guessValue: currentGuess,
+        guessType: isLetterGuess ? "letter" : "word",
+      });
     }
   };
 
@@ -369,7 +445,7 @@ export default function Redacted() {
     analytics.logWin({ lives_remaining: lives }, roundIndex);
   };
 
-  const handleLossAttempt = () => {
+  const handleLossAttempt = ({ guessValue, guessType }) => {
     setShake(true);
     setTimeout(() => setShake(false), 500);
 
@@ -379,7 +455,7 @@ export default function Redacted() {
 
     analytics.logAction(
       "guess_wrong",
-      { guess: guess, lives: newLives },
+      { guess: guessValue, type: guessType, lives: newLives },
       roundIndex
     );
 
@@ -436,7 +512,7 @@ export default function Redacted() {
             Redacted <span className="text-slate-300 hidden sm:inline">|</span>
           </h1>
           <p className="text-slate-500 text-xs md:text-sm font-medium">
-            Fill in the missing words
+            Guess letters or solve the missing words
           </p>
         </div>
 
@@ -487,15 +563,34 @@ export default function Redacted() {
             </div>
           )}
 
-          <div className="flex flex-wrap justify-center gap-x-1.5 gap-y-2 text-center leading-relaxed">
+          <div className="flex flex-wrap justify-center gap-x-2 gap-y-3 text-center leading-relaxed">
             {words.map((word) => {
               if (word.hidden) {
+                const characters = word.text.split("");
                 return (
                   <span
                     key={word.id}
-                    className="bg-slate-200 text-transparent rounded px-2 py-0.5 min-w-[50px] select-none border-b-4 border-slate-300 animate-pulse"
+                    className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 shadow-inner ring-1 ring-slate-200/80"
                   >
-                    {word.text}
+                    {characters.map((char, index) => {
+                      const isRevealed = word.revealedMap?.[index];
+                      const isVisibleCharacter = /[a-z0-9]/i.test(char);
+                      const showCharacter = isRevealed || !isVisibleCharacter;
+                      return (
+                        <span
+                          key={`${word.id}-${index}`}
+                          className={`flex h-8 w-6 items-center justify-center rounded border border-slate-300 bg-white text-lg font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 md:h-10 md:w-8 md:text-2xl ${
+                            showCharacter ? "text-slate-800" : "text-transparent"
+                          } ${
+                            word.justRevealedIndices?.includes(index)
+                              ? "animate-letter-pop text-blue-700"
+                              : ""
+                          }`}
+                        >
+                          {showCharacter ? char : " "}
+                        </span>
+                      );
+                    })}
                   </span>
                 );
               }
@@ -589,7 +684,7 @@ export default function Redacted() {
               type="text"
               value={guess}
               onChange={(e) => setGuess(e.target.value)}
-              placeholder="Type the missing word..."
+              placeholder="Guess a letter or a word..."
               className="w-full bg-slate-100 border-2 border-slate-200 text-slate-900 text-lg font-bold py-3 pl-5 pr-12 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all placeholder-slate-400"
               autoComplete="off"
             />
@@ -619,10 +714,16 @@ export default function Redacted() {
 
       <style>{`
         .animate-shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        .animate-letter-pop { animation: letter-pop 0.35s ease-out both; }
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
           25% { transform: translateX(-5px); }
           75% { transform: translateX(5px); }
+        }
+        @keyframes letter-pop {
+          0% { transform: scale(0.6); opacity: 0; }
+          60% { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(1); }
         }
       `}</style>
     </div>
