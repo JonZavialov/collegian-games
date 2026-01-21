@@ -27,24 +27,6 @@ const parseCookies = (cookieHeader = "") =>
 const hashToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
-const ensureVersionsTable = async (client) => {
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS quiz_config_versions (
-      id SERIAL PRIMARY KEY,
-      slug TEXT NOT NULL,
-      data JSONB NOT NULL,
-      published_at TIMESTAMPTZ,
-      created_at TIMESTAMPTZ,
-      versioned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-
-  await client.query(`
-    CREATE INDEX IF NOT EXISTS quiz_config_versions_slug_versioned_idx
-    ON quiz_config_versions (slug, versioned_at DESC);
-  `);
-};
-
 exports.handler = async (event) => {
   const client = new Client({
     host: process.env.DB_HOST,
@@ -89,7 +71,7 @@ exports.handler = async (event) => {
         AND ip_address = $2
         AND expires_at > NOW()
       `,
-      [tokenHash, clientIp]
+      [tokenHash, clientIp],
     );
 
     if (sessionResult.rows.length === 0) {
@@ -99,7 +81,6 @@ exports.handler = async (event) => {
       };
     }
 
-    await ensureVersionsTable(client);
     await client.query("BEGIN");
 
     const existingResult = await client.query(
@@ -108,7 +89,7 @@ exports.handler = async (event) => {
       FROM quiz_configs
       WHERE slug = $1
       `,
-      [QUIZ_SLUG]
+      [QUIZ_SLUG],
     );
 
     if (existingResult.rows.length > 0) {
@@ -118,7 +99,7 @@ exports.handler = async (event) => {
         INSERT INTO quiz_config_versions (slug, data, published_at, created_at)
         VALUES ($1, $2, $3, $4)
         `,
-        [QUIZ_SLUG, existing.data, existing.published_at, existing.created_at]
+        [QUIZ_SLUG, existing.data, existing.published_at, existing.created_at],
       );
     }
 
@@ -133,7 +114,7 @@ exports.handler = async (event) => {
         updated_at = NOW()
       RETURNING data
       `,
-      [QUIZ_SLUG, quiz]
+      [QUIZ_SLUG, quiz],
     );
 
     await client.query("COMMIT");
