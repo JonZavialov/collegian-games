@@ -6,7 +6,7 @@ const DisclaimerFooter = () => {
   const DEV_2 = { name: "Rohan Badami", url: "https://github.com/RohanBadami" };
 
   return (
-    <footer className="mt-16 w-full border-t border-slate-200 py-8 text-center font-sans">
+    <footer className="mt-16 w-full border-t border-slate-200 py-4 text-center font-sans">
       <div className="flex flex-col items-center gap-6">
         {/* THE PLUG: Developer Credit Badge */}
         <div className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs text-slate-500 shadow-sm transition-all hover:border-blue-200 hover:shadow-md">
