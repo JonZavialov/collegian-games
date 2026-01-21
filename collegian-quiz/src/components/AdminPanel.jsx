@@ -17,6 +17,8 @@ import { createEmptyQuestion, normalizeQuizData } from "../utils/quizData";
 const SESSION_ENDPOINT = "/.netlify/functions/admin-session";
 const LOGIN_ENDPOINT = "/.netlify/functions/admin-login";
 const LOGOUT_ENDPOINT = "/.netlify/functions/admin-logout";
+const LIST_VERSIONS_ENDPOINT = "/.netlify/functions/list-quiz-versions";
+const RESTORE_VERSION_ENDPOINT = "/.netlify/functions/restore-quiz-version";
 
 const cloneData = (data) => JSON.parse(JSON.stringify(data));
 
@@ -31,6 +33,7 @@ export default function AdminPanel({
   data,
   onSave,
   onExit,
+  onRestore,
 }) {
   const [draftData, setDraftData] = useState(() => cloneData(data));
   const [importPayload, setImportPayload] = useState("");
@@ -41,6 +44,11 @@ export default function AdminPanel({
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [versionsError, setVersionsError] = useState("");
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [restoreError, setRestoreError] = useState("");
+  const [restoringId, setRestoringId] = useState(null);
 
   useEffect(() => {
     setDraftData(cloneData(data));
@@ -78,6 +86,32 @@ export default function AdminPanel({
   useEffect(() => {
     refreshSession();
   }, []);
+
+  const fetchVersions = async () => {
+    setVersionsError("");
+    setIsLoadingVersions(true);
+    try {
+      const response = await fetch(LIST_VERSIONS_ENDPOINT, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || "Unable to load versions.");
+      }
+      const payload = await response.json();
+      setVersions(payload.versions || []);
+    } catch (error) {
+      setVersionsError(error.message || "Unable to load versions.");
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchVersions();
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = async (event) => {
     event.preventDefault();
@@ -187,6 +221,7 @@ export default function AdminPanel({
       await onSave(normalized);
       setStatusMessage("Published! Players will see the latest version.");
       setTimeout(() => setStatusMessage(""), 3500);
+      await fetchVersions();
     } catch (error) {
       setSaveError(error.message || "Failed to publish. Please try again.");
     } finally {
@@ -223,6 +258,40 @@ export default function AdminPanel({
       setTimeout(() => setStatusMessage(""), 3500);
     } catch (error) {
       setImportError("Invalid JSON. Please fix and try again.");
+    }
+  };
+
+  const handleRestore = async (versionId, timestampLabel) => {
+    setRestoreError("");
+    const confirmed = window.confirm(
+      `Restore the quiz to the version saved on ${timestampLabel}?`
+    );
+    if (!confirmed) return;
+    setRestoringId(versionId);
+    try {
+      const response = await fetch(RESTORE_VERSION_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ versionId }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.message || "Restore failed.");
+      }
+      const payload = await response.json();
+      const normalized = normalizeQuizData(payload.data);
+      setDraftData(normalized);
+      onRestore(normalized);
+      setStatusMessage("Restored! Publish again to make further edits.");
+      setTimeout(() => setStatusMessage(""), 3500);
+      await fetchVersions();
+    } catch (error) {
+      setRestoreError(error.message || "Restore failed.");
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -320,6 +389,11 @@ export default function AdminPanel({
             {saveError}
           </div>
         )}
+        {restoreError && (
+          <div className="border-t border-rose-200 bg-rose-50 px-6 py-3 text-sm font-semibold text-rose-700">
+            {restoreError}
+          </div>
+        )}
       </header>
 
       <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 py-8 lg:flex-row">
@@ -388,6 +462,72 @@ export default function AdminPanel({
                   placeholder="Short bio or theme for this week."
                 />
               </label>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">
+                  Version history
+                </h2>
+                <p className="text-sm text-slate-500">
+                  Restore a previous publish if something went wrong. Restoring
+                  will replace the live quiz immediately.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchVersions}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:border-slate-400"
+                disabled={isLoadingVersions}
+              >
+                <Download size={16} />{" "}
+                {isLoadingVersions ? "Refreshing..." : "Refresh list"}
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {isLoadingVersions && (
+                <p className="text-sm text-slate-500">Loading versions...</p>
+              )}
+              {versionsError && (
+                <p className="text-sm text-rose-500">{versionsError}</p>
+              )}
+              {!isLoadingVersions && !versionsError && versions.length === 0 && (
+                <p className="text-sm text-slate-500">
+                  No saved versions yet. Publish a quiz to start tracking
+                  history.
+                </p>
+              )}
+              {versions.map((version) => {
+                const timestamp = new Date(version.versioned_at);
+                const label = timestamp.toLocaleString();
+                return (
+                  <div
+                    key={version.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">
+                        Saved {label}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Version ID: {version.id}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(version.id, label)}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-700"
+                      disabled={restoringId === version.id}
+                    >
+                      <Upload size={16} />{" "}
+                      {restoringId === version.id ? "Restoring..." : "Restore"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

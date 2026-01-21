@@ -40,20 +40,21 @@ exports.handler = async (event) => {
   });
 
   try {
-    const payload = JSON.parse(event.body || "{}");
-    const { quiz } = payload;
-    const clientIp = getClientIp(event);
-
-    if (!quiz) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ message: "Quiz payload is required." }),
-      };
-    }
-
     await client.connect();
+    const payload = JSON.parse(event.body || "{}");
+    const versionId = Number(payload.versionId);
     const cookies = parseCookies(event.headers.cookie || "");
     const token = cookies[SESSION_COOKIE];
+    const clientIp = getClientIp(event);
+
+    if (!Number.isInteger(versionId) || versionId <= 0) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({
+          message: "versionId must be a positive integer.",
+        }),
+      };
+    }
 
     if (!token) {
       return {
@@ -83,7 +84,25 @@ exports.handler = async (event) => {
 
     await client.query("BEGIN");
 
-    const existingResult = await client.query(
+    const versionResult = await client.query(
+      `
+      SELECT data
+      FROM quiz_config_versions
+      WHERE id = $1
+        AND slug = $2
+      `,
+      [versionId, QUIZ_SLUG],
+    );
+
+    if (versionResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ message: "Version not found." }),
+      };
+    }
+
+    const currentResult = await client.query(
       `
       SELECT data, published_at, created_at
       FROM quiz_configs
@@ -92,18 +111,19 @@ exports.handler = async (event) => {
       [QUIZ_SLUG],
     );
 
-    if (existingResult.rows.length > 0) {
-      const existing = existingResult.rows[0];
+    if (currentResult.rows.length > 0) {
+      const current = currentResult.rows[0];
       await client.query(
         `
         INSERT INTO quiz_config_versions (slug, data, published_at, created_at)
         VALUES ($1, $2, $3, $4)
         `,
-        [QUIZ_SLUG, existing.data, existing.published_at, existing.created_at],
+        [QUIZ_SLUG, current.data, current.published_at, current.created_at],
       );
     }
 
-    const result = await client.query(
+    const restoredData = versionResult.rows[0].data;
+    const restoreResult = await client.query(
       `
       INSERT INTO quiz_configs (slug, data, published_at, created_at, updated_at)
       VALUES ($1, $2, NOW(), NOW(), NOW())
@@ -114,14 +134,14 @@ exports.handler = async (event) => {
         updated_at = NOW()
       RETURNING data
       `,
-      [QUIZ_SLUG, quiz],
+      [QUIZ_SLUG, restoredData],
     );
 
     await client.query("COMMIT");
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ data: result.rows[0].data }),
+      body: JSON.stringify({ data: restoreResult.rows[0].data }),
     };
   } catch (error) {
     await client.query("ROLLBACK");
