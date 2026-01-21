@@ -312,6 +312,15 @@ export default function Redacted() {
         ? token.split("").map((char) => !/[a-z0-9]/i.test(char))
         : [];
 
+      if (hidden) {
+        const firstVisibleIndex = token
+          .split("")
+          .findIndex((char) => /[a-z0-9]/i.test(char));
+        if (firstVisibleIndex !== -1) {
+          revealedMap[firstVisibleIndex] = true;
+        }
+      }
+
       return {
         id: index,
         text: token,
