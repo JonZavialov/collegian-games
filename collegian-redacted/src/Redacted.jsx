@@ -313,11 +313,31 @@ export default function Redacted() {
         : [];
 
       if (hidden) {
-        const firstVisibleIndex = token
-          .split("")
-          .findIndex((char) => /[a-z0-9]/i.test(char));
-        if (firstVisibleIndex !== -1) {
+        const characters = token.split("");
+        const visibleIndices = characters
+          .map((char, charIndex) =>
+            /[a-z0-9]/i.test(char) ? charIndex : null
+          )
+          .filter((charIndex) => charIndex !== null);
+        const firstVisibleIndex = visibleIndices[0];
+        if (firstVisibleIndex !== undefined) {
           revealedMap[firstVisibleIndex] = true;
+          if (visibleIndices.length > 5) {
+            const remainingIndices = visibleIndices.filter(
+              (charIndex) => charIndex !== firstVisibleIndex
+            );
+            for (
+              let i = 0;
+              i < 2 && remainingIndices.length > 0;
+              i += 1
+            ) {
+              const randomIndex = Math.floor(
+                Math.random() * remainingIndices.length
+              );
+              const revealedIndex = remainingIndices.splice(randomIndex, 1)[0];
+              revealedMap[revealedIndex] = true;
+            }
+          }
         }
       }
 
