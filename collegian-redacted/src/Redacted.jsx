@@ -11,13 +11,13 @@ import {
   X,
 } from "lucide-react";
 import Confetti from "react-confetti";
+import posthog from "posthog-js";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 
-// CONFIGURATION - Updated to use the Netlify/Postgres bridge
+// CONFIGURATION
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
 
-// Extended Stop Words (Unchanged)
 const STOP_WORDS = new Set([
   "a",
   "an",
@@ -94,7 +94,7 @@ const STOP_WORDS = new Set([
 ]);
 
 export default function Redacted() {
-  // --- STATE (Unchanged) ---
+  // --- STATE ---
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -105,7 +105,11 @@ export default function Redacted() {
   const [lives, setLives] = useState(5);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState("loading");
+
+  // UI Animation States
   const [shake, setShake] = useState(false);
+  const [lifeLostAnimation, setLifeLostAnimation] = useState(false);
+
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const tutorialStorageKey = "redacted_tutorial_dismissed";
@@ -115,7 +119,7 @@ export default function Redacted() {
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
-  // --- 1. FETCH NEWS (Updated for Database JSON) ---
+  // --- 1. FETCH NEWS ---
   useEffect(() => {
     const fetchNews = async () => {
       try {
@@ -130,33 +134,23 @@ export default function Redacted() {
           }
         }
 
-        // Fetching from the Database Bridge instead of raw RSS
         const response = await fetch(DB_API_ENDPOINT);
         if (!response.ok) throw new Error("Failed to load news from database");
 
-        // DB response is already clean JSON, no XML parsing needed
         const parsedItems = await response.json();
         const cleanedItems = parsedItems
           .map((item) => {
             let imageUrl = item.image;
-
             if (imageUrl && imageUrl.includes("?")) {
               imageUrl = imageUrl.split("?")[0];
             }
-
-            return {
-              ...item,
-              image: imageUrl,
-            };
+            return { ...item, image: imageUrl };
           })
           .filter((item) => item.headline && item.image);
 
         sessionStorage.setItem(
           "hh_news_cache",
-          JSON.stringify({
-            timestamp: Date.now(),
-            data: cleanedItems,
-          })
+          JSON.stringify({ timestamp: Date.now(), data: cleanedItems }),
         );
 
         setArticles(cleanedItems);
@@ -171,8 +165,6 @@ export default function Redacted() {
 
     fetchNews();
   }, []);
-
-  // --- EVERYTHING BELOW IS YOUR ORIGINAL LOGIC UNTOUCHED ---
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -269,6 +261,10 @@ export default function Redacted() {
   const setupRound = (articleList = articles) => {
     if (!articleList || articleList.length === 0) return;
 
+    // --- DIFFICULTY CHECK ---
+    // Default to 'easy' so you can see the fix immediately locally
+    const difficulty = posthog.getFeatureFlag("redacted-difficulty") || "test";
+
     const article = articleList[Math.floor(Math.random() * articleList.length)];
     setCurrentArticle(article);
 
@@ -280,13 +276,38 @@ export default function Redacted() {
     const tokens =
       cleanTitle.match(/[a-z0-9]+(?:'[a-z0-9]+)*|\s+|[.,!?:;"()]/gi) ?? [];
 
+    // --- CANDIDATE SELECTION FIX ---
+    // Prevent hiding Names (Proper Nouns) and single-letter words
     const candidates = [];
     tokens.forEach((token, index) => {
+      const isProperNoun = /^[A-Z]/.test(token);
+      const isSingleChar = token.length <= 1;
       const lower = token.toLowerCase().trim();
-      if (/^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(lower) && !STOP_WORDS.has(lower)) {
+
+      if (
+        /^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(lower) &&
+        !STOP_WORDS.has(lower) &&
+        !isProperNoun &&
+        !isSingleChar
+      ) {
         candidates.push(index);
       }
     });
+
+    // Fallback: If 0 candidates found, allow names but still block single chars
+    if (candidates.length === 0) {
+      tokens.forEach((token, index) => {
+        const isSingleChar = token.length <= 1;
+        const lower = token.toLowerCase().trim();
+        if (
+          /^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(lower) &&
+          !STOP_WORDS.has(lower) &&
+          !isSingleChar
+        ) {
+          candidates.push(index);
+        }
+      });
+    }
 
     const maxHidable = Math.ceil(candidates.length / 2);
     const targetHideCount = Math.max(1, Math.min(3, maxHidable));
@@ -305,7 +326,7 @@ export default function Redacted() {
 
     const wordObjects = tokens.map((token, index) => {
       const isWord = /^[a-z0-9]+(?:'[a-z0-9]+)*$/i.test(
-        token.toLowerCase().trim()
+        token.toLowerCase().trim(),
       );
       const hidden = indicesToHide.has(index);
       const revealedMap = hidden
@@ -315,28 +336,61 @@ export default function Redacted() {
       if (hidden) {
         const characters = token.split("");
         const visibleIndices = characters
-          .map((char, charIndex) =>
-            /[a-z0-9]/i.test(char) ? charIndex : null
-          )
+          .map((char, charIndex) => (/[a-z0-9]/i.test(char) ? charIndex : null))
           .filter((charIndex) => charIndex !== null);
+
+        // --- 1. ALWAYS REVEAL FIRST LETTER (Universal Rule) ---
         const firstVisibleIndex = visibleIndices[0];
         if (firstVisibleIndex !== undefined) {
           revealedMap[firstVisibleIndex] = true;
+        }
+
+        // --- 2. BRANCH BASED ON DIFFICULTY ---
+        if (difficulty === "control") {
+          // === ORIGINAL HARD MODE LOGIC ===
+          // Only gives extra hints if the word is very long (>5 chars)
           if (visibleIndices.length > 5) {
             const remainingIndices = visibleIndices.filter(
-              (charIndex) => charIndex !== firstVisibleIndex
+              (charIndex) => charIndex !== firstVisibleIndex,
             );
-            for (
-              let i = 0;
-              i < 2 && remainingIndices.length > 0;
-              i += 1
-            ) {
+            // Reveal up to 2 random letters for long words
+            for (let i = 0; i < 2 && remainingIndices.length > 0; i += 1) {
               const randomIndex = Math.floor(
-                Math.random() * remainingIndices.length
+                Math.random() * remainingIndices.length,
               );
               const revealedIndex = remainingIndices.splice(randomIndex, 1)[0];
               revealedMap[revealedIndex] = true;
             }
+          }
+        } else {
+          // === EASY MODE LOGIC ===
+          // (Does NOT run the code above. Uses its own "50% Middle" rule instead)
+
+          // A. Reveal Last Letter
+          const lastVisibleIndex = visibleIndices[visibleIndices.length - 1];
+          if (
+            lastVisibleIndex !== undefined &&
+            lastVisibleIndex !== firstVisibleIndex
+          ) {
+            revealedMap[lastVisibleIndex] = true;
+          }
+
+          // B. Reveal 50% of the MIDDLE letters
+          const middleIndices = visibleIndices.filter(
+            (idx) => idx !== firstVisibleIndex && idx !== lastVisibleIndex,
+          );
+
+          // Calculate 50% of just the middle chunk
+          const lettersToReveal = Math.floor(middleIndices.length * 0.5);
+
+          for (
+            let i = 0;
+            i < lettersToReveal && middleIndices.length > 0;
+            i++
+          ) {
+            const randomPos = Math.floor(Math.random() * middleIndices.length);
+            const idxToReveal = middleIndices.splice(randomPos, 1)[0];
+            revealedMap[idxToReveal] = true;
           }
         }
       }
@@ -357,8 +411,12 @@ export default function Redacted() {
     setGuess("");
     setGameState("playing");
     setShake(false);
+    setLifeLostAnimation(false);
 
-    analytics.logStart({ headline_length: tokens.length }, roundIndex);
+    analytics.logStart(
+      { headline_length: tokens.length, difficulty_variant: difficulty },
+      roundIndex,
+    );
 
     setTimeout(() => {
       inputRef.current?.focus();
@@ -403,7 +461,7 @@ export default function Redacted() {
 
         const fullyRevealed = characters.every(
           (char, index) =>
-            !/[a-z0-9]/i.test(char) || updatedMap[index] === true
+            !/[a-z0-9]/i.test(char) || updatedMap[index] === true,
         );
 
         if (fullyRevealed) {
@@ -443,7 +501,7 @@ export default function Redacted() {
       analytics.logAction(
         "guess_correct",
         { guess: currentGuess, type: isLetterGuess ? "letter" : "word" },
-        roundIndex
+        roundIndex,
       );
 
       const remaining = newWords.filter((w) => w.hidden).length;
@@ -463,7 +521,7 @@ export default function Redacted() {
     setLives(0);
     setGameState("lost");
     setWords((w) =>
-      w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true }))
+      w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
     );
     analytics.logLoss({ score, method: "surrender" }, roundIndex);
   };
@@ -476,7 +534,11 @@ export default function Redacted() {
 
   const handleLossAttempt = ({ guessValue, guessType }) => {
     setShake(true);
-    setTimeout(() => setShake(false), 500);
+    setLifeLostAnimation(true);
+    setTimeout(() => {
+      setShake(false);
+      setLifeLostAnimation(false);
+    }, 500);
 
     const newLives = lives - 1;
     setLives(newLives);
@@ -485,13 +547,13 @@ export default function Redacted() {
     analytics.logAction(
       "guess_wrong",
       { guess: guessValue, type: guessType, lives: newLives },
-      roundIndex
+      roundIndex,
     );
 
     if (newLives <= 0) {
       setGameState("lost");
       setWords((w) =>
-        w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true }))
+        w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
       );
       analytics.logLoss({ score, method: "out_of_lives" }, roundIndex);
     }
@@ -535,6 +597,24 @@ export default function Redacted() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-32">
       {tutorialModal}
+
+      {/* Confetti fixed to background layer */}
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      >
+        {gameState === "won" && (
+          <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />
+        )}
+      </div>
+
       <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
@@ -551,36 +631,29 @@ export default function Redacted() {
             onClick={openTutorial}
             className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
           >
-            <Info size={14} /> How to play
+            <Info size={14} />{" "}
+            <span className="hidden sm:inline">How to play</span>
           </button>
+
+          {/* FEEDBACK BUTTON RESTORED */}
           <button
             type="button"
-            onClick={() => analytics.logFeedback()}
+            onClick={() =>
+              analytics.logFeedback?.() ?? analytics.logAction("feedback_click")
+            }
             className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
           >
             Feedback
           </button>
-          <div
-            className={`bg-white px-3 py-1.5 rounded-full shadow-sm font-bold border flex items-center gap-1.5 transition-colors ${
-              lives === 0
-                ? "text-slate-400 border-slate-200"
-                : "text-red-600 border-red-100"
-            }`}
-          >
-            <Heart size={16} fill="currentColor" /> {lives}
-          </div>
+
           <div className="bg-white px-3 py-1.5 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5">
             <Trophy size={16} /> {score}
           </div>
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto" ref={listRef}>
+      <div className="max-w-2xl mx-auto z-10 relative" ref={listRef}>
         <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center gap-6 relative overflow-hidden min-h-[200px] md:min-h-[300px]">
-          {gameState === "won" && (
-            <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />
-          )}
-
           {currentArticle?.image && (
             <div className="w-full overflow-hidden rounded-lg border border-slate-200 shadow-sm">
               <img
@@ -609,7 +682,9 @@ export default function Redacted() {
                         <span
                           key={`${word.id}-${index}`}
                           className={`flex h-8 w-6 items-center justify-center rounded border border-slate-300 bg-white text-lg font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 md:h-10 md:w-8 md:text-2xl ${
-                            showCharacter ? "text-slate-800" : "text-transparent"
+                            showCharacter
+                              ? "text-slate-800"
+                              : "text-transparent"
                           } ${
                             word.justRevealedIndices?.includes(index)
                               ? "animate-letter-pop text-blue-700"
@@ -652,7 +727,10 @@ export default function Redacted() {
                   rel="noreferrer"
                   className="px-5 py-2.5 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-50 flex items-center justify-center gap-2"
                   onClick={() =>
-                    analytics.logContentClick({ url: currentArticle.link })
+                    analytics.logAction("article_clicked", {
+                      url: currentArticle.link,
+                      result: "won",
+                    })
                   }
                 >
                   Read Story <ExternalLink size={16} />
@@ -678,6 +756,12 @@ export default function Redacted() {
                   target="_blank"
                   rel="noreferrer"
                   className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 flex items-center justify-center gap-2"
+                  onClick={() =>
+                    analytics.logAction("article_clicked", {
+                      url: currentArticle.link,
+                      result: "lost",
+                    })
+                  }
                 >
                   Read Story <ExternalLink size={16} />
                 </a>
@@ -704,6 +788,24 @@ export default function Redacted() {
         }`}
       >
         <div className="max-w-2xl mx-auto relative">
+          {/* NEW LIVES INDICATOR */}
+          <div className="absolute -top-12 right-0 flex justify-end w-full px-2">
+            <div
+              className={`bg-white px-4 py-2 rounded-t-xl shadow-lg font-black border-t border-x flex items-center gap-2 transition-all duration-200 ${
+                lives <= 2
+                  ? "text-red-600 border-red-200 bg-red-50"
+                  : "text-slate-700 border-slate-200"
+              } ${lifeLostAnimation ? "scale-125 bg-red-500 text-white" : ""}`}
+            >
+              <Heart
+                size={20}
+                fill="currentColor"
+                className={lifeLostAnimation ? "animate-ping" : ""}
+              />
+              <span className="text-lg">{lives}</span>
+            </div>
+          </div>
+
           <form
             onSubmit={handleGuess}
             className={`relative ${shake ? "animate-shake" : ""}`}
@@ -714,7 +816,11 @@ export default function Redacted() {
               value={guess}
               onChange={(e) => setGuess(e.target.value)}
               placeholder="Guess a letter or a word..."
-              className="w-full bg-slate-100 border-2 border-slate-200 text-slate-900 text-lg font-bold py-3 pl-5 pr-12 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all placeholder-slate-400"
+              className={`w-full bg-slate-100 border-2 text-slate-900 text-lg font-bold py-3 pl-5 pr-12 rounded-xl focus:outline-none focus:bg-white transition-all placeholder-slate-400 ${
+                shake
+                  ? "border-red-500 bg-red-50"
+                  : "border-slate-200 focus:border-blue-500"
+              }`}
               autoComplete="off"
             />
             <button
