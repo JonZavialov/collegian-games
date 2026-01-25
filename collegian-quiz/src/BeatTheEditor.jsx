@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Confetti from "react-confetti";
+import posthog from "posthog-js";
 import {
   ArrowRight,
   Share2,
@@ -18,6 +19,11 @@ import { normalizeQuizData } from "./utils/quizData";
 const ADMIN_QUERY_KEY = "admin";
 const QUIZ_ENDPOINT = "/.netlify/functions/get-quiz";
 const PUBLISH_ENDPOINT = "/.netlify/functions/publish-quiz";
+
+const FEATURE_FLAG_KEY = "bte-difficulty";
+const DEFAULT_DIFFICULTY_VARIANT = "control";
+const CONTROL_QUESTION_COUNT = 10;
+const TEST_QUESTION_COUNT = 5;
 
 const setAdminQuery = (enabled) => {
   const url = new URL(window.location.href);
@@ -41,6 +47,11 @@ const getWeekInfo = (date) => {
 
 const toWeekKey = (info) => `${info.year}-W${info.week}`;
 
+const resolveDifficultyVariant = (rawVariant) =>
+  rawVariant === "test" ? "test" : DEFAULT_DIFFICULTY_VARIANT;
+
+const clampNumber = (value, min, max) => Math.min(max, Math.max(min, value));
+
 export default function BeatTheEditor() {
   const [loading, setLoading] = useState(true);
   const [quizData, setQuizData] = useState(null);
@@ -53,8 +64,11 @@ export default function BeatTheEditor() {
   const [currentQ, setCurrentQ] = useState(0);
   const [score, setScore] = useState(0);
   const [userAnswers, setUserAnswers] = useState([]);
+  const [difficultyVariant, setDifficultyVariant] = useState(
+    DEFAULT_DIFFICULTY_VARIANT,
+  );
   const roundIndex = currentQ + 1;
-  const analytics = useGameAnalytics("beat-the-editor", roundIndex);
+  const analytics = useGameAnalytics("beat_the_editor", roundIndex);
 
   // Engagement / Streak State
   const [streak, setStreak] = useState(0);
@@ -66,6 +80,17 @@ export default function BeatTheEditor() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const tutorialStorageKey = "beat-the-editor_tutorial_dismissed";
+
+  const questionLimit =
+    difficultyVariant === "test" ? TEST_QUESTION_COUNT : CONTROL_QUESTION_COUNT;
+  const totalQuestions = quizData?.questions?.length ?? 0;
+  const questionCount = Math.min(questionLimit, totalQuestions);
+  const gameQuestions = quizData?.questions?.slice(0, questionCount) ?? [];
+  const effectiveEditorScore = (() => {
+    if (!quizData || totalQuestions === 0) return 0;
+    const scaled = Math.round((quizData.editorScore / totalQuestions) * questionCount);
+    return clampNumber(scaled, 0, questionCount);
+  })();
 
   useEffect(() => {
     // Load Streak from Local Storage
@@ -269,7 +294,7 @@ export default function BeatTheEditor() {
     setSelectedOption(null);
     setAnswerStatus(null);
 
-    if (currentQ < quizData.questions.length - 1) {
+    if (currentQ < gameQuestions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
       finishGame(finalScore);
@@ -281,7 +306,7 @@ export default function BeatTheEditor() {
     if (selectedOption !== null) return;
 
     setSelectedOption(index);
-    const isCorrect = index === quizData.questions[currentQ].correct;
+    const isCorrect = index === gameQuestions[currentQ].correct;
     setAnswerStatus(isCorrect ? "correct" : "wrong");
 
     analytics.logAction(
@@ -289,7 +314,8 @@ export default function BeatTheEditor() {
       {
         question_index: currentQ + 1,
         is_correct: isCorrect,
-        question_text: quizData.questions[currentQ].text,
+        question_text: gameQuestions[currentQ].text,
+        difficulty_variant: difficultyVariant,
       },
       currentQ + 1,
     );
@@ -297,7 +323,7 @@ export default function BeatTheEditor() {
     setUserAnswers([
       ...userAnswers,
       {
-        qId: quizData.questions[currentQ].id,
+        qId: gameQuestions[currentQ].id,
         userPick: index,
         isCorrect,
       },
@@ -336,17 +362,18 @@ export default function BeatTheEditor() {
     const resultMetadata = {
       streak_length: newStreak,
       score: finalScore,
-      beat_editor: finalScore > quizData.editorScore,
+      beat_editor: finalScore > effectiveEditorScore,
+      difficulty_variant: difficultyVariant,
     };
-    if (finalScore > quizData.editorScore) {
+    if (finalScore > effectiveEditorScore) {
       analytics.logWin({ ...resultMetadata, result: "win" }, roundIndex);
-    } else if (finalScore === quizData.editorScore) {
+    } else if (finalScore === effectiveEditorScore) {
       analytics.logLoss({ ...resultMetadata, result: "draw" }, roundIndex);
     } else {
       analytics.logLoss({ ...resultMetadata, result: "loss" }, roundIndex);
     }
 
-    if (finalScore > quizData.editorScore) {
+    if (finalScore > effectiveEditorScore) {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 5000);
     }
@@ -356,10 +383,14 @@ export default function BeatTheEditor() {
     const squares = userAnswers
       .map((a) => (a.isCorrect ? "🟩" : "🟥"))
       .join("");
-    const text = `I beat the editor! ${score}/${quizData.questions.length}\nStreak: ${streak}🔥\n${squares}\nRead more at: collegian.psu.edu`;
+    const text = `I beat the editor! ${score}/${gameQuestions.length}\nStreak: ${streak}🔥\n${squares}\nRead more at: collegian.psu.edu`;
     navigator.clipboard.writeText(text);
     alert("Score copied to clipboard!");
-    analytics.logAction("share_results", { score }, roundIndex);
+    analytics.logAction(
+      "share_results",
+      { score, difficulty_variant: difficultyVariant },
+      roundIndex,
+    );
   };
 
   if (loading) {
@@ -446,7 +477,7 @@ export default function BeatTheEditor() {
                   {quizData.editorName}
                 </span>
                 <span className="text-sm font-bold text-slate-800 bg-slate-200 px-2 rounded mt-1">
-                  Score to Beat: {quizData.editorScore}
+                  Score to Beat: {effectiveEditorScore}
                 </span>
                 {quizData.editorBlurb && (
                   <p className="text-xs text-slate-500 mt-2 leading-snug max-w-[180px]">
@@ -459,7 +490,16 @@ export default function BeatTheEditor() {
 
           <button
             onClick={() => {
-              analytics.logStart();
+              //posthog.featureFlags.overrideFeatureFlags({ flags: { "bte-difficulty": "test" } });
+              const nextVariant = resolveDifficultyVariant(
+                posthog.getFeatureFlag(FEATURE_FLAG_KEY) ||
+                  DEFAULT_DIFFICULTY_VARIANT,
+              );
+              setDifficultyVariant(nextVariant);
+              analytics.logStart(
+                { game_id: "beat_the_editor", difficulty_variant: nextVariant },
+                roundIndex,
+              );
               setGameState("playing");
             }}
             className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl shadow-blue-200 shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-2"
@@ -474,8 +514,8 @@ export default function BeatTheEditor() {
 
   // --- VIEW 2: PLAYING ---
   if (gameState === "playing") {
-    const question = quizData.questions[currentQ];
-    const progress = (currentQ / quizData.questions.length) * 100;
+    const question = gameQuestions[currentQ];
+    const progress = (currentQ / gameQuestions.length) * 100;
 
     // Check if we are in "Feedback Mode" (user answered wrong)
     const showFeedback = selectedOption !== null && answerStatus === "wrong";
@@ -556,16 +596,17 @@ export default function BeatTheEditor() {
                       href={question.articleUrl}
                       target="_top"
                       onClick={() =>
-                        analytics.logContentClick(
-                          {
-                            article_title: question.articleTitle,
-                            destination_url: question.articleUrl,
-                            source_question: question.text,
-                            context: "wrong_answer_feedback",
-                          },
-                          currentQ + 1,
-                        )
-                      }
+	                        analytics.logContentClick(
+	                          {
+	                            article_title: question.articleTitle,
+	                            destination_url: question.articleUrl,
+	                            source_question: question.text,
+	                            context: "wrong_answer_feedback",
+	                            difficulty_variant: difficultyVariant,
+	                          },
+	                          currentQ + 1,
+	                        )
+	                      }
                       className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-3 py-2 rounded shadow-sm"
                     >
                       Read: {question.articleTitle}
@@ -591,7 +632,7 @@ export default function BeatTheEditor() {
 
   // --- VIEW 3: RESULTS ---
   if (gameState === "results") {
-    const userWon = score > quizData.editorScore;
+    const userWon = score > effectiveEditorScore;
 
     return (
       <>
@@ -609,18 +650,18 @@ export default function BeatTheEditor() {
 
           <div className="text-center mb-8 mt-4">
             <h2 className="text-4xl font-black text-slate-900 mb-2 italic">
-              {userWon
-                ? "VICTORY!"
-                : score === quizData.editorScore
-                  ? "DRAW!"
-                  : "DEFEAT!"}
+	              {userWon
+	                ? "VICTORY!"
+	                : score === effectiveEditorScore
+	                  ? "DRAW!"
+	                  : "DEFEAT!"}
             </h2>
             <p className="text-slate-600 text-lg">
               You: <span className="font-bold text-blue-600">{score}</span> —
               Editor:{" "}
-              <span className="font-bold text-slate-800">
-                {quizData.editorScore}
-              </span>
+	              <span className="font-bold text-slate-800">
+	                {effectiveEditorScore}
+	              </span>
             </p>
 
             <button
@@ -635,9 +676,9 @@ export default function BeatTheEditor() {
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center">
               Your Answers
             </h3>
-            {quizData.questions.map((q, idx) => {
-              const userAnswer = userAnswers.find((a) => a.qId === q.id);
-              return (
+	            {gameQuestions.map((q, idx) => {
+	              const userAnswer = userAnswers.find((a) => a.qId === q.id);
+	              return (
                 <div
                   key={idx}
                   className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
@@ -661,16 +702,17 @@ export default function BeatTheEditor() {
                       <a
                         href={q.articleUrl}
                         target="_top"
-                        onClick={() =>
-                          analytics.logContentClick(
-                            {
-                              article_title: q.articleTitle,
-                              destination_url: q.articleUrl,
-                              source_question: q.text,
-                            },
-                            idx + 1,
-                          )
-                        }
+	                        onClick={() =>
+	                          analytics.logContentClick(
+	                            {
+	                              article_title: q.articleTitle,
+	                              destination_url: q.articleUrl,
+	                              source_question: q.text,
+	                              difficulty_variant: difficultyVariant,
+	                            },
+	                            idx + 1,
+	                          )
+	                        }
                         className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-blue-50 px-2 py-1 rounded"
                       >
                         Read: {q.articleTitle}{" "}
