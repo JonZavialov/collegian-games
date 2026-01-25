@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Confetti from "react-confetti";
 import posthog from "posthog-js";
 import {
@@ -85,7 +85,19 @@ export default function BeatTheEditor() {
     difficultyVariant === "test" ? TEST_QUESTION_COUNT : CONTROL_QUESTION_COUNT;
   const totalQuestions = quizData?.questions?.length ?? 0;
   const questionCount = Math.min(questionLimit, totalQuestions);
-  const gameQuestions = quizData?.questions?.slice(0, questionCount) ?? [];
+  const gameQuestions = useMemo(() => {
+    if (!quizData?.questions) return [];
+    const questions = [...quizData.questions];
+
+    if (difficultyVariant === "test") {
+      for (let i = questions.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questions[i], questions[j]] = [questions[j], questions[i]];
+      }
+    }
+
+    return questions.slice(0, questionCount);
+  }, [difficultyVariant, questionCount, quizData]);
   const effectiveEditorScore = (() => {
     if (!quizData || totalQuestions === 0) return 0;
     const scaled = Math.round((quizData.editorScore / totalQuestions) * questionCount);
@@ -96,6 +108,19 @@ export default function BeatTheEditor() {
     // Load Streak from Local Storage
     const savedStreak = parseInt(localStorage.getItem("newsGameStreak") || "0");
     setStreak(savedStreak);
+  }, []);
+
+  useEffect(() => {
+    const updateDifficultyVariant = () => {
+      const nextVariant = resolveDifficultyVariant(
+        posthog.getFeatureFlag(FEATURE_FLAG_KEY) || DEFAULT_DIFFICULTY_VARIANT,
+      );
+      setDifficultyVariant(nextVariant);
+    };
+
+    updateDifficultyVariant();
+
+    posthog.onFeatureFlags(updateDifficultyVariant);
   }, []);
 
   useEffect(() => {
