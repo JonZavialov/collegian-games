@@ -111,6 +111,19 @@ export default function BeatTheEditor() {
   }, []);
 
   useEffect(() => {
+    const updateDifficultyVariant = () => {
+      const nextVariant = resolveDifficultyVariant(
+        posthog.getFeatureFlag(FEATURE_FLAG_KEY) || DEFAULT_DIFFICULTY_VARIANT,
+      );
+      setDifficultyVariant(nextVariant);
+    };
+
+    updateDifficultyVariant();
+
+    posthog.onFeatureFlags(updateDifficultyVariant);
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     const fetchQuizData = async () => {
