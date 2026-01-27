@@ -176,61 +176,60 @@ export default function BeatTheEditor() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="bg-gradient-to-r from-blue-600 via-sky-500 to-indigo-500 p-6 text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
-                Quick Tutorial
-              </p>
-              <h2 className="text-2xl font-black">How to beat the editor</h2>
-              <p className="mt-2 text-sm text-blue-100">
-                Answer weekly news questions and outscore the editor&apos;s
-                benchmark.
+              <h2 className="text-xl font-black text-slate-900">
+                How to play Beat The Editor
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Answer weekly news questions, then see if you outscore the
+                editor.
               </p>
             </div>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-full bg-white/10 p-2 text-white/80 transition hover:bg-white/20 hover:text-white"
+              className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
               aria-label="Close tutorial"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
-        </div>
-        <div className="space-y-5 p-6">
-          <div className="grid gap-4 text-sm text-slate-700">
-            <div className="flex gap-3">
-              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
-                1
-              </span>
-              <p>
-                Read each question and pick the best answer from the four
-                choices.
-              </p>
+
+          <div className="mt-5">
+            <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+              Core gameplay
             </div>
-            <div className="flex gap-3">
-              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
-                2
-              </span>
-              <p>
-                Correct answers give you points and move you forward. Missed
-                answers reveal a quick explainer.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
-                3
-              </span>
-              <p>
-                At the end, compare your score to the editor&apos;s score to see
-                if you won.
-              </p>
-            </div>
+            <ol className="mt-3 space-y-3 text-sm text-slate-700">
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">
+                  1
+                </span>
+                <span>Pick the best answer.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">
+                  2
+                </span>
+                <span>Earn points for correct picks and move on.</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-700">
+                  3
+                </span>
+                <span>Finish the quiz and beat the editor&apos;s score.</span>
+              </li>
+            </ol>
+
+            <p className="mt-4 text-xs text-slate-500">
+              Missed answers show a quick explainer.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <input
                 type="checkbox"
@@ -243,7 +242,7 @@ export default function BeatTheEditor() {
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
             >
               Let&apos;s play
             </button>
