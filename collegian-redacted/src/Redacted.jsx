@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Loader,
   Trophy,
@@ -17,6 +17,61 @@ import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
+const DAILY_LIMIT = 5;
+const DAILY_STORAGE_KEY = "redacted_daily_progress";
+
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (dateKey) =>
+  new Date(`${dateKey}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+const createSeededRandom = (seed) => {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return value / 2147483647;
+  };
+};
+
+const seededShuffle = (items, seed) => {
+  const random = createSeededRandom(seed);
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+const getArticleSortKey = (item) =>
+  `${item?.id ?? item?.link ?? item?.headline ?? ""}`;
+
+const getDailyRounds = (articles, dateKey) => {
+  const seed = Number(dateKey.replace(/-/g, ""));
+  const sorted = [...articles].sort((a, b) =>
+    getArticleSortKey(a).localeCompare(getArticleSortKey(b)),
+  );
+  return seededShuffle(sorted, seed).slice(0, DAILY_LIMIT);
+};
 
 const STOP_WORDS = new Set([
   "a",
@@ -113,11 +168,46 @@ export default function Redacted() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const tutorialStorageKey = "redacted_tutorial_dismissed";
+  const [dailyProgress, setDailyProgress] = useState(() => {
+    if (typeof window === "undefined") {
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
+    }
+    const stored = localStorage.getItem(DAILY_STORAGE_KEY);
+    if (!stored) {
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      const roundsCompleted = Number.isInteger(parsed?.roundsCompleted)
+        ? parsed.roundsCompleted
+        : Number.isInteger(parsed?.roundsPlayed)
+          ? parsed.roundsPlayed
+          : 0;
+      if (typeof parsed?.dateKey === "string") {
+        return { dateKey: parsed.dateKey, roundsCompleted };
+      }
+    } catch (error) {
+      console.warn("Failed to read daily progress:", error);
+    }
+    return { dateKey: getTodayKey(), roundsCompleted: 0 };
+  });
+  const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
+  const roundCompletedRef = useRef(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
-  const roundIndex = score + 1;
-  const analytics = useGameAnalytics("redacted", roundIndex);
+  const analytics = useGameAnalytics("redacted", currentRoundNumber);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  const todayKey = getTodayKey();
+  const effectiveProgress =
+    dailyProgress.dateKey === todayKey
+      ? dailyProgress
+      : { dateKey: todayKey, roundsCompleted: 0 };
+  const roundsLeft = Math.max(
+    DAILY_LIMIT - effectiveProgress.roundsCompleted,
+    0,
+  );
+  const formattedDate = formatDate(todayKey);
 
   // --- 1. FETCH NEWS ---
   useEffect(() => {
@@ -164,6 +254,21 @@ export default function Redacted() {
     };
 
     fetchNews();
+  }, []);
+
+  useEffect(() => {
+    if (dailyProgress.dateKey !== todayKey) {
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
+      setDailyProgress(refreshed);
+      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
+    }
+  }, [dailyProgress.dateKey, todayKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -263,12 +368,31 @@ export default function Redacted() {
 
   const setupRound = (articleList = articles) => {
     if (!articleList || articleList.length === 0) return;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
+      setGameState("daily-complete");
+      return;
+    }
+
+    const roundNumber = baseProgress.roundsCompleted + 1;
+    const dailyRounds = getDailyRounds(articleList, todayKey);
+    const article = dailyRounds[roundNumber - 1];
+    if (!article) {
+      setGameState("daily-complete");
+      return;
+    }
+    const roundSeed = Number(todayKey.replace(/-/g, "")) + roundNumber * 97;
+    const random = createSeededRandom(roundSeed);
+    setCurrentRoundNumber(roundNumber);
+    roundCompletedRef.current = false;
 
     // --- DIFFICULTY CHECK ---
     // Default to 'easy' so you can see the fix immediately locally
     const difficulty = posthog.getFeatureFlag("redacted-difficulty") || "test";
-
-    const article = articleList[Math.floor(Math.random() * articleList.length)];
     setCurrentArticle(article);
 
     const cleanTitle = article.headline
@@ -322,7 +446,7 @@ export default function Redacted() {
       indicesToHide.size < candidates.length &&
       attempts < 50
     ) {
-      const randomIndex = Math.floor(Math.random() * candidates.length);
+      const randomIndex = Math.floor(random() * candidates.length);
       indicesToHide.add(candidates[randomIndex]);
       attempts++;
     }
@@ -359,7 +483,7 @@ export default function Redacted() {
             // Reveal up to 2 random letters for long words
             for (let i = 0; i < 2 && remainingIndices.length > 0; i += 1) {
               const randomIndex = Math.floor(
-                Math.random() * remainingIndices.length,
+                random() * remainingIndices.length,
               );
               const revealedIndex = remainingIndices.splice(randomIndex, 1)[0];
               revealedMap[revealedIndex] = true;
@@ -391,7 +515,7 @@ export default function Redacted() {
             i < lettersToReveal && middleIndices.length > 0;
             i++
           ) {
-            const randomPos = Math.floor(Math.random() * middleIndices.length);
+            const randomPos = Math.floor(random() * middleIndices.length);
             const idxToReveal = middleIndices.splice(randomPos, 1)[0];
             revealedMap[idxToReveal] = true;
           }
@@ -418,7 +542,7 @@ export default function Redacted() {
 
     analytics.logStart(
       { headline_length: tokens.length, difficulty_variant: difficulty },
-      roundIndex,
+      roundNumber,
     );
 
     setTimeout(() => {
@@ -504,7 +628,7 @@ export default function Redacted() {
       analytics.logAction(
         "guess_correct",
         { guess: currentGuess, type: isLetterGuess ? "letter" : "word" },
-        roundIndex,
+        currentRoundNumber,
       );
 
       const remaining = newWords.filter((w) => w.hidden).length;
@@ -519,6 +643,27 @@ export default function Redacted() {
     }
   };
 
+  const markRoundComplete = useCallback(() => {
+    if (roundCompletedRef.current) {
+      return;
+    }
+    roundCompletedRef.current = true;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsCompleted: Math.max(
+        baseProgress.roundsCompleted,
+        currentRoundNumber,
+      ),
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+  }, [currentRoundNumber, dailyProgress]);
+
   const handleGiveUp = () => {
     if (gameState !== "playing") return;
     setLives(0);
@@ -526,13 +671,15 @@ export default function Redacted() {
     setWords((w) =>
       w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
     );
-    analytics.logLoss({ score, method: "surrender" }, roundIndex);
+    analytics.logLoss({ score, method: "surrender" }, currentRoundNumber);
+    markRoundComplete();
   };
 
   const handleWin = () => {
     setGameState("won");
     setScore((s) => s + 1);
-    analytics.logWin({ lives_remaining: lives }, roundIndex);
+    analytics.logWin({ lives_remaining: lives }, currentRoundNumber);
+    markRoundComplete();
   };
 
   const handleLossAttempt = ({ guessValue, guessType }) => {
@@ -550,7 +697,7 @@ export default function Redacted() {
     analytics.logAction(
       "guess_wrong",
       { guess: guessValue, type: guessType, lives: newLives },
-      roundIndex,
+      currentRoundNumber,
     );
 
     if (newLives <= 0) {
@@ -558,9 +705,11 @@ export default function Redacted() {
       setWords((w) =>
         w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
       );
-      analytics.logLoss({ score, method: "out_of_lives" }, roundIndex);
+      analytics.logLoss({ score, method: "out_of_lives" }, currentRoundNumber);
+      markRoundComplete();
     }
   };
+
 
   if (loading) {
     return (
@@ -626,6 +775,14 @@ export default function Redacted() {
           <p className="text-slate-500 text-xs md:text-sm font-medium">
             Guess letters or solve the missing words
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem] font-semibold text-slate-500">
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Today: {formattedDate}
+            </span>
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Rounds left: {roundsLeft} / {DAILY_LIMIT}
+            </span>
+          </div>
         </div>
 
         <div className="flex gap-2 md:gap-3 items-center">
@@ -656,131 +813,170 @@ export default function Redacted() {
       </div>
 
       <div className="max-w-2xl mx-auto z-10 relative" ref={listRef}>
-        <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center gap-6 relative overflow-hidden min-h-[200px] md:min-h-[300px]">
-          {currentArticle?.image && (
-            <div className="w-full overflow-hidden rounded-lg border border-slate-200 shadow-sm">
-              <img
-                src={currentArticle.image}
-                alt={currentArticle.headline}
-                className="h-48 w-full object-cover md:h-64"
-                loading="lazy"
-              />
+        {gameState === "daily-complete" ? (
+          <div className="bg-white rounded-xl shadow-xl border-4 border-white p-6 md:p-10 text-center space-y-4">
+            <h2 className="text-2xl font-black text-slate-900">
+              That&apos;s today&apos;s edition
+            </h2>
+            <p className="text-slate-600">
+              You&apos;ve finished all {DAILY_LIMIT} Redacted rounds for today.
+            </p>
+            <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+              New rounds in{" "}
+              <span className="font-black text-slate-800">
+                {formatCountdown(timeUntilReset)}
+              </span>
+              .
             </div>
-          )}
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center gap-6 relative overflow-hidden min-h-[200px] md:min-h-[300px]">
+            {currentArticle?.image && (
+              <div className="w-full overflow-hidden rounded-lg border border-slate-200 shadow-sm">
+                <img
+                  src={currentArticle.image}
+                  alt={currentArticle.headline}
+                  className="h-48 w-full object-cover md:h-64"
+                  loading="lazy"
+                />
+              </div>
+            )}
 
-          <div className="flex flex-wrap justify-center gap-x-2 gap-y-3 text-center leading-relaxed">
-            {words.map((word) => {
-              if (word.hidden) {
-                const characters = word.text.split("");
+            <div className="flex flex-wrap justify-center gap-x-2 gap-y-3 text-center leading-relaxed">
+              {words.map((word) => {
+                if (word.hidden) {
+                  const characters = word.text.split("");
+                  return (
+                    <span
+                      key={word.id}
+                      className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 shadow-inner ring-1 ring-slate-200/80"
+                    >
+                      {characters.map((char, index) => {
+                        const isRevealed = word.revealedMap?.[index];
+                        const isVisibleCharacter = /[a-z0-9]/i.test(char);
+                        const showCharacter =
+                          isRevealed || !isVisibleCharacter;
+                        return (
+                          <span
+                            key={`${word.id}-${index}`}
+                            className={`flex h-8 w-6 items-center justify-center rounded border border-slate-300 bg-white text-lg font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 md:h-10 md:w-8 md:text-2xl ${
+                              showCharacter
+                                ? "text-slate-800"
+                                : "text-transparent"
+                            } ${
+                              word.justRevealedIndices?.includes(index)
+                                ? "animate-letter-pop text-blue-700"
+                                : ""
+                            }`}
+                          >
+                            {showCharacter ? char : " "}
+                          </span>
+                        );
+                      })}
+                    </span>
+                  );
+                }
                 return (
                   <span
                     key={word.id}
-                    className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 shadow-inner ring-1 ring-slate-200/80"
+                    className={`text-2xl md:text-4xl font-bold transition-all duration-500 ${
+                      word.justRevealed
+                        ? "text-blue-600 scale-110"
+                        : "text-slate-800"
+                    } ${word.revealedOnLoss ? "text-red-500" : ""} ${
+                      word.isPunctuation ? "text-slate-400" : ""
+                    }`}
                   >
-                    {characters.map((char, index) => {
-                      const isRevealed = word.revealedMap?.[index];
-                      const isVisibleCharacter = /[a-z0-9]/i.test(char);
-                      const showCharacter = isRevealed || !isVisibleCharacter;
-                      return (
-                        <span
-                          key={`${word.id}-${index}`}
-                          className={`flex h-8 w-6 items-center justify-center rounded border border-slate-300 bg-white text-lg font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 md:h-10 md:w-8 md:text-2xl ${
-                            showCharacter
-                              ? "text-slate-800"
-                              : "text-transparent"
-                          } ${
-                            word.justRevealedIndices?.includes(index)
-                              ? "animate-letter-pop text-blue-700"
-                              : ""
-                          }`}
-                        >
-                          {showCharacter ? char : " "}
-                        </span>
-                      );
-                    })}
+                    {word.text}
                   </span>
                 );
-              }
-              return (
-                <span
-                  key={word.id}
-                  className={`text-2xl md:text-4xl font-bold transition-all duration-500 ${
-                    word.justRevealed
-                      ? "text-blue-600 scale-110"
-                      : "text-slate-800"
-                  } ${word.revealedOnLoss ? "text-red-500" : ""} ${
-                    word.isPunctuation ? "text-slate-400" : ""
-                  }`}
-                >
-                  {word.text}
-                </span>
-              );
-            })}
+              })}
+            </div>
+
+            {gameState === "won" && (
+              <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
+                <h3 className="text-xl font-black text-green-600 mb-2">
+                  Headlines Restored!
+                </h3>
+                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                  <a
+                    href={currentArticle?.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-5 py-2.5 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-50 flex items-center justify-center gap-2"
+                    onClick={() =>
+                      analytics.logAction("article_clicked", {
+                        url: currentArticle.link,
+                        result: "won",
+                      })
+                    }
+                  >
+                    Read Story <ExternalLink size={16} />
+                  </a>
+                  {roundsLeft > 0 ? (
+                    <button
+                      onClick={() => setupRound()}
+                      className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
+                    >
+                      Next Story <ArrowRight size={16} />
+                    </button>
+                  ) : (
+                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                      You&apos;re done for today. Next round in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {gameState === "lost" && (
+              <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
+                <h3 className="text-xl font-black text-red-600 mb-2">
+                  Story Redacted.
+                </h3>
+                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                  <a
+                    href={currentArticle?.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 flex items-center justify-center gap-2"
+                    onClick={() =>
+                      analytics.logAction("article_clicked", {
+                        url: currentArticle.link,
+                        result: "lost",
+                      })
+                    }
+                  >
+                    Read Story <ExternalLink size={16} />
+                  </a>
+                  {roundsLeft > 0 ? (
+                    <button
+                      onClick={() => {
+                        setScore(0);
+                        setupRound();
+                      }}
+                      className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
+                    >
+                      Try Again
+                    </button>
+                  ) : (
+                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                      That&apos;s all for today. See you in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-
-          {gameState === "won" && (
-            <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
-              <h3 className="text-xl font-black text-green-600 mb-2">
-                Headlines Restored!
-              </h3>
-              <div className="flex flex-col sm:flex-row justify-center gap-3">
-                <a
-                  href={currentArticle?.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-5 py-2.5 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-50 flex items-center justify-center gap-2"
-                  onClick={() =>
-                    analytics.logAction("article_clicked", {
-                      url: currentArticle.link,
-                      result: "won",
-                    })
-                  }
-                >
-                  Read Story <ExternalLink size={16} />
-                </a>
-                <button
-                  onClick={() => setupRound()}
-                  className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
-                >
-                  Next Story <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {gameState === "lost" && (
-            <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
-              <h3 className="text-xl font-black text-red-600 mb-2">
-                Story Redacted.
-              </h3>
-              <div className="flex flex-col sm:flex-row justify-center gap-3">
-                <a
-                  href={currentArticle?.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 flex items-center justify-center gap-2"
-                  onClick={() =>
-                    analytics.logAction("article_clicked", {
-                      url: currentArticle.link,
-                      result: "lost",
-                    })
-                  }
-                >
-                  Read Story <ExternalLink size={16} />
-                </a>
-                <button
-                  onClick={() => {
-                    setScore(0);
-                    setupRound();
-                  }}
-                  className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
-                >
-                  Try Again
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       <DisclaimerFooter />
