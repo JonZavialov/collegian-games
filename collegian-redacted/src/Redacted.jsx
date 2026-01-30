@@ -29,6 +29,20 @@ const formatDate = (dateKey) =>
     year: "numeric",
   });
 
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
 const createSeededRandom = (seed) => {
   let value = seed % 2147483647;
   if (value <= 0) value += 2147483646;
@@ -179,6 +193,7 @@ export default function Redacted() {
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const roundCompletedRef = useRef(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
   const analytics = useGameAnalytics("redacted", currentRoundNumber);
   const inputRef = useRef(null);
@@ -248,6 +263,13 @@ export default function Redacted() {
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
   }, [dailyProgress.dateKey, todayKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -800,7 +822,11 @@ export default function Redacted() {
               You&apos;ve finished all {DAILY_LIMIT} Redacted rounds for today.
             </p>
             <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-              Come back tomorrow for a fresh set of headlines.
+              New rounds in{" "}
+              <span className="font-black text-slate-800">
+                {formatCountdown(timeUntilReset)}
+              </span>
+              .
             </div>
           </div>
         ) : (
@@ -896,7 +922,11 @@ export default function Redacted() {
                     </button>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      You&apos;re done for today. Come back tomorrow!
+                      You&apos;re done for today. Next round in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
                     </div>
                   )}
                 </div>
@@ -935,7 +965,11 @@ export default function Redacted() {
                     </button>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      That&apos;s all for today. See you tomorrow!
+                      That&apos;s all for today. See you in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
                     </div>
                   )}
                 </div>

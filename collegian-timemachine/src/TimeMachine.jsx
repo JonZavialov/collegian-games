@@ -40,6 +40,20 @@ const formatDate = (dateKey) =>
     year: "numeric",
   });
 
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
 const createSeededRandom = (seed) => {
   let value = seed % 2147483647;
   if (value <= 0) value += 2147483646;
@@ -120,6 +134,7 @@ export default function TimeMachine() {
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const roundCompletedRef = useRef(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
@@ -165,6 +180,13 @@ export default function TimeMachine() {
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
   }, [dailyProgress.dateKey, todayKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -882,7 +904,11 @@ export default function TimeMachine() {
                   </button>
                 ) : (
                   <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                    You&apos;ve finished today&apos;s round. Come back tomorrow!
+                    You&apos;ve finished today&apos;s round. Come back in{" "}
+                    <span className="font-black text-slate-800">
+                      {formatCountdown(timeUntilReset)}
+                    </span>
+                    .
                   </div>
                 )}
               </div>
@@ -934,7 +960,11 @@ export default function TimeMachine() {
                   </button>
                 ) : (
                   <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                    That&apos;s today&apos;s Time Machine. Come back tomorrow!
+                    That&apos;s today&apos;s Time Machine. Come back in{" "}
+                    <span className="font-black text-slate-800">
+                      {formatCountdown(timeUntilReset)}
+                    </span>
+                    .
                   </div>
                 )}
               </div>
@@ -948,7 +978,11 @@ export default function TimeMachine() {
                 You&apos;ve played today&apos;s Time Machine round.
               </p>
               <div className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-sm">
-                Come back tomorrow for a new front page.
+                New round in{" "}
+                <span className="font-black text-slate-800">
+                  {formatCountdown(timeUntilReset)}
+                </span>
+                .
               </div>
             </div>
           ) : (
