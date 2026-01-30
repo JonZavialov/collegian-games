@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader,
   Trophy,
@@ -67,26 +67,29 @@ export default function HeadlineHunter() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     const stored = localStorage.getItem(DAILY_STORAGE_KEY);
     if (!stored) {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     try {
       const parsed = JSON.parse(stored);
-      if (
-        typeof parsed?.dateKey === "string" &&
-        Number.isInteger(parsed?.roundsPlayed)
-      ) {
-        return parsed;
+      const roundsCompleted = Number.isInteger(parsed?.roundsCompleted)
+        ? parsed.roundsCompleted
+        : Number.isInteger(parsed?.roundsPlayed)
+          ? parsed.roundsPlayed
+          : 0;
+      if (typeof parsed?.dateKey === "string") {
+        return { dateKey: parsed.dateKey, roundsCompleted };
       }
     } catch (error) {
       console.warn("Failed to read daily progress:", error);
     }
-    return { dateKey: getTodayKey(), roundsPlayed: 0 };
+    return { dateKey: getTodayKey(), roundsCompleted: 0 };
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
+  const roundCompletedRef = useRef(false);
 
   const analytics = useGameAnalytics("headline-hunter", currentRoundNumber);
   const tutorialStorageKey = "headlinehunter_tutorial_dismissed";
@@ -94,8 +97,11 @@ export default function HeadlineHunter() {
   const effectiveProgress =
     dailyProgress.dateKey === todayKey
       ? dailyProgress
-      : { dateKey: todayKey, roundsPlayed: 0 };
-  const roundsLeft = Math.max(DAILY_LIMIT - effectiveProgress.roundsPlayed, 0);
+      : { dateKey: todayKey, roundsCompleted: 0 };
+  const roundsLeft = Math.max(
+    DAILY_LIMIT - effectiveProgress.roundsCompleted,
+    0,
+  );
   const formattedDate = formatDate(todayKey);
 
   // Zoom scales: 8x -> 4x -> 2x -> 1x (Full) - Original Logic
@@ -145,7 +151,7 @@ export default function HeadlineHunter() {
 
   useEffect(() => {
     if (dailyProgress.dateKey !== todayKey) {
-      const refreshed = { dateKey: todayKey, roundsPlayed: 0 };
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
       setDailyProgress(refreshed);
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
@@ -180,13 +186,13 @@ export default function HeadlineHunter() {
       const baseProgress =
         dailyProgress.dateKey === todayKey
           ? dailyProgress
-          : { dateKey: todayKey, roundsPlayed: 0 };
-      if (baseProgress.roundsPlayed >= DAILY_LIMIT) {
+          : { dateKey: todayKey, roundsCompleted: 0 };
+      if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
         setGameState("daily-complete");
         return;
       }
 
-      const roundNumber = baseProgress.roundsPlayed + 1;
+      const roundNumber = baseProgress.roundsCompleted + 1;
       const dailyRounds = getDailyRounds(articleList, todayKey);
       const correct = dailyRounds[roundNumber - 1];
       if (!correct) {
@@ -201,13 +207,8 @@ export default function HeadlineHunter() {
         [correct, ...decoys],
         roundSeed + 17,
       );
-      const updatedProgress = {
-        dateKey: todayKey,
-        roundsPlayed: roundNumber,
-      };
-      setDailyProgress(updatedProgress);
-      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
       setCurrentRoundNumber(roundNumber);
+      roundCompletedRef.current = false;
 
       setRound({ correct, options });
       setZoomLevel(0);
@@ -224,6 +225,27 @@ export default function HeadlineHunter() {
     [analytics, articles, dailyProgress]
   );
 
+  const markRoundComplete = useCallback(() => {
+    if (roundCompletedRef.current) {
+      return;
+    }
+    roundCompletedRef.current = true;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsCompleted: Math.max(
+        baseProgress.roundsCompleted,
+        currentRoundNumber,
+      ),
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+  }, [currentRoundNumber, dailyProgress]);
+
   const handleGuess = (articleId) => {
     if (gameState !== "playing") return;
 
@@ -232,6 +254,7 @@ export default function HeadlineHunter() {
       setScore(score + 1);
       setZoomLevel(3);
       analytics.logWin({ score: score + 1 }, currentRoundNumber);
+      markRoundComplete();
     } else {
       const newWrong = [...wrongGuesses, articleId];
       setWrongGuesses(newWrong);
