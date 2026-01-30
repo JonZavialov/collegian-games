@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Loader,
   Trophy,
@@ -156,26 +156,29 @@ export default function Redacted() {
   const tutorialStorageKey = "redacted_tutorial_dismissed";
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     const stored = localStorage.getItem(DAILY_STORAGE_KEY);
     if (!stored) {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     try {
       const parsed = JSON.parse(stored);
-      if (
-        typeof parsed?.dateKey === "string" &&
-        Number.isInteger(parsed?.roundsPlayed)
-      ) {
-        return parsed;
+      const roundsCompleted = Number.isInteger(parsed?.roundsCompleted)
+        ? parsed.roundsCompleted
+        : Number.isInteger(parsed?.roundsPlayed)
+          ? parsed.roundsPlayed
+          : 0;
+      if (typeof parsed?.dateKey === "string") {
+        return { dateKey: parsed.dateKey, roundsCompleted };
       }
     } catch (error) {
       console.warn("Failed to read daily progress:", error);
     }
-    return { dateKey: getTodayKey(), roundsPlayed: 0 };
+    return { dateKey: getTodayKey(), roundsCompleted: 0 };
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
+  const roundCompletedRef = useRef(false);
 
   const analytics = useGameAnalytics("redacted", currentRoundNumber);
   const inputRef = useRef(null);
@@ -184,8 +187,11 @@ export default function Redacted() {
   const effectiveProgress =
     dailyProgress.dateKey === todayKey
       ? dailyProgress
-      : { dateKey: todayKey, roundsPlayed: 0 };
-  const roundsLeft = Math.max(DAILY_LIMIT - effectiveProgress.roundsPlayed, 0);
+      : { dateKey: todayKey, roundsCompleted: 0 };
+  const roundsLeft = Math.max(
+    DAILY_LIMIT - effectiveProgress.roundsCompleted,
+    0,
+  );
   const formattedDate = formatDate(todayKey);
 
   // --- 1. FETCH NEWS ---
@@ -237,7 +243,7 @@ export default function Redacted() {
 
   useEffect(() => {
     if (dailyProgress.dateKey !== todayKey) {
-      const refreshed = { dateKey: todayKey, roundsPlayed: 0 };
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
       setDailyProgress(refreshed);
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
@@ -344,13 +350,13 @@ export default function Redacted() {
     const baseProgress =
       dailyProgress.dateKey === todayKey
         ? dailyProgress
-        : { dateKey: todayKey, roundsPlayed: 0 };
-    if (baseProgress.roundsPlayed >= DAILY_LIMIT) {
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
       setGameState("daily-complete");
       return;
     }
 
-    const roundNumber = baseProgress.roundsPlayed + 1;
+    const roundNumber = baseProgress.roundsCompleted + 1;
     const dailyRounds = getDailyRounds(articleList, todayKey);
     const article = dailyRounds[roundNumber - 1];
     if (!article) {
@@ -359,13 +365,8 @@ export default function Redacted() {
     }
     const roundSeed = Number(todayKey.replace(/-/g, "")) + roundNumber * 97;
     const random = createSeededRandom(roundSeed);
-    const updatedProgress = {
-      dateKey: todayKey,
-      roundsPlayed: roundNumber,
-    };
-    setDailyProgress(updatedProgress);
-    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
     setCurrentRoundNumber(roundNumber);
+    roundCompletedRef.current = false;
 
     // --- DIFFICULTY CHECK ---
     // Default to 'easy' so you can see the fix immediately locally
@@ -620,6 +621,27 @@ export default function Redacted() {
     }
   };
 
+  const markRoundComplete = useCallback(() => {
+    if (roundCompletedRef.current) {
+      return;
+    }
+    roundCompletedRef.current = true;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsCompleted: Math.max(
+        baseProgress.roundsCompleted,
+        currentRoundNumber,
+      ),
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+  }, [currentRoundNumber, dailyProgress]);
+
   const handleGiveUp = () => {
     if (gameState !== "playing") return;
     setLives(0);
@@ -628,12 +650,14 @@ export default function Redacted() {
       w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
     );
     analytics.logLoss({ score, method: "surrender" }, currentRoundNumber);
+    markRoundComplete();
   };
 
   const handleWin = () => {
     setGameState("won");
     setScore((s) => s + 1);
     analytics.logWin({ lives_remaining: lives }, currentRoundNumber);
+    markRoundComplete();
   };
 
   const handleLossAttempt = ({ guessValue, guessType }) => {
@@ -660,8 +684,10 @@ export default function Redacted() {
         w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
       );
       analytics.logLoss({ score, method: "out_of_lives" }, currentRoundNumber);
+      markRoundComplete();
     }
   };
+
 
   if (loading) {
     return (

@@ -97,26 +97,29 @@ export default function TimeMachine() {
   const [closestGuessDiff, setClosestGuessDiff] = useState(null);
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     const stored = localStorage.getItem(DAILY_STORAGE_KEY);
     if (!stored) {
-      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
     }
     try {
       const parsed = JSON.parse(stored);
-      if (
-        typeof parsed?.dateKey === "string" &&
-        Number.isInteger(parsed?.roundsPlayed)
-      ) {
-        return parsed;
+      const roundsCompleted = Number.isInteger(parsed?.roundsCompleted)
+        ? parsed.roundsCompleted
+        : Number.isInteger(parsed?.roundsPlayed)
+          ? parsed.roundsPlayed
+          : 0;
+      if (typeof parsed?.dateKey === "string") {
+        return { dateKey: parsed.dateKey, roundsCompleted };
       }
     } catch (error) {
       console.warn("Failed to read daily progress:", error);
     }
-    return { dateKey: getTodayKey(), roundsPlayed: 0 };
+    return { dateKey: getTodayKey(), roundsCompleted: 0 };
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
+  const roundCompletedRef = useRef(false);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
@@ -131,8 +134,11 @@ export default function TimeMachine() {
   const effectiveProgress =
     dailyProgress.dateKey === todayKey
       ? dailyProgress
-      : { dateKey: todayKey, roundsPlayed: 0 };
-  const roundsLeft = Math.max(DAILY_LIMIT - effectiveProgress.roundsPlayed, 0);
+      : { dateKey: todayKey, roundsCompleted: 0 };
+  const roundsLeft = Math.max(
+    DAILY_LIMIT - effectiveProgress.roundsCompleted,
+    0,
+  );
   const formattedDate = formatDate(todayKey);
   const devicePixelRatio =
     typeof window !== "undefined"
@@ -154,7 +160,7 @@ export default function TimeMachine() {
 
   useEffect(() => {
     if (dailyProgress.dateKey !== todayKey) {
-      const refreshed = { dateKey: todayKey, roundsPlayed: 0 };
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
       setDailyProgress(refreshed);
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
@@ -204,8 +210,8 @@ export default function TimeMachine() {
     const baseProgress =
       dailyProgress.dateKey === todayKey
         ? dailyProgress
-        : { dateKey: todayKey, roundsPlayed: 0 };
-    if (baseProgress.roundsPlayed >= DAILY_LIMIT) {
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
       setGameState("daily-complete");
       setLoading(false);
       setTargetDate(null);
@@ -213,14 +219,9 @@ export default function TimeMachine() {
       setTotalPages(null);
       return;
     }
-    const nextRoundNumber = baseProgress.roundsPlayed + 1;
-    const updatedProgress = {
-      dateKey: todayKey,
-      roundsPlayed: nextRoundNumber,
-    };
-    setDailyProgress(updatedProgress);
-    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+    const nextRoundNumber = baseProgress.roundsCompleted + 1;
     setCurrentRoundNumber(nextRoundNumber);
+    roundCompletedRef.current = false;
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
@@ -247,6 +248,27 @@ export default function TimeMachine() {
     // 📊 TRACK: New Game Started
     analytics.logStart({}, nextRoundNumber);
   }, [analytics, dailyProgress]);
+
+  const markRoundComplete = useCallback(() => {
+    if (roundCompletedRef.current) {
+      return;
+    }
+    roundCompletedRef.current = true;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsCompleted: Math.max(
+        baseProgress.roundsCompleted,
+        currentRoundNumber,
+      ),
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+  }, [currentRoundNumber, dailyProgress]);
 
   const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
@@ -498,6 +520,12 @@ export default function TimeMachine() {
       analytics.logAction("page_turn", { page_number: pageNumber }, pageNumber);
     }
   }, [analytics, gameState, pageNumber]);
+
+  useEffect(() => {
+    if (gameState === "won" || gameState === "lost") {
+      markRoundComplete();
+    }
+  }, [gameState, markRoundComplete]);
 
   useEffect(() => {
     if (!pdfUrl || gameState !== "playing") {
