@@ -9,14 +9,18 @@ import {
   Flag,
   Info,
   X,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import posthog from "posthog-js";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import useDailyLimit from "./hooks/useDailyLimit";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
+const DAILY_LIMIT = 5;
 
 const STOP_WORDS = new Set([
   "a",
@@ -105,6 +109,7 @@ export default function Redacted() {
   const [lives, setLives] = useState(5);
   const [score, setScore] = useState(0);
   const [gameState, setGameState] = useState("loading");
+  const [usedArticleIndices, setUsedArticleIndices] = useState([]);
 
   // UI Animation States
   const [shake, setShake] = useState(false);
@@ -118,6 +123,19 @@ export default function Redacted() {
   const analytics = useGameAnalytics("redacted", roundIndex);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+
+  // Daily limit tracking
+  const {
+    playsToday,
+    hasReachedLimit,
+    remainingPlays,
+    isLoading: isLimitLoading,
+    recordPlay,
+    getSeededIndex,
+    seededShuffle,
+    getShortDate,
+    getTimeUntilReset,
+  } = useDailyLimit("redacted", DAILY_LIMIT);
 
   // --- 1. FETCH NEWS ---
   useEffect(() => {
@@ -261,14 +279,24 @@ export default function Redacted() {
     </div>
   ) : null;
 
-  const setupRound = (articleList = articles) => {
+  const setupRound = (articleList = articles, roundNum = playsToday) => {
     if (!articleList || articleList.length === 0) return;
+
+    // Check if limit reached before setting up a new round
+    if (roundNum >= DAILY_LIMIT) {
+      setGameState("limit_reached");
+      return;
+    }
 
     // --- DIFFICULTY CHECK ---
     // Default to 'easy' so you can see the fix immediately locally
     const difficulty = posthog.getFeatureFlag("redacted-difficulty") || "test";
 
-    const article = articleList[Math.floor(Math.random() * articleList.length)];
+    // Use seeded random for consistent daily content
+    // Each round gets a different article based on the round number
+    const articleIndex = getSeededIndex(articleList.length, roundNum);
+    const article = articleList[articleIndex];
+    setUsedArticleIndices((prev) => [...prev, articleIndex]);
     setCurrentArticle(article);
 
     const cleanTitle = article.headline
@@ -526,12 +554,16 @@ export default function Redacted() {
     setWords((w) =>
       w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
     );
+    // Record the play for daily limit tracking
+    recordPlay();
     analytics.logLoss({ score, method: "surrender" }, roundIndex);
   };
 
   const handleWin = () => {
     setGameState("won");
     setScore((s) => s + 1);
+    // Record the play for daily limit tracking
+    recordPlay();
     analytics.logWin({ lives_remaining: lives }, roundIndex);
   };
 
@@ -558,19 +590,65 @@ export default function Redacted() {
       setWords((w) =>
         w.map((word) => ({ ...word, hidden: false, revealedOnLoss: true })),
       );
+      // Record the play for daily limit tracking
+      recordPlay();
       analytics.logLoss({ score, method: "out_of_lives" }, roundIndex);
     }
   };
 
-  if (loading) {
+  if (loading || isLimitLoading) {
     return (
       <>
         <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center font-sans">
           <Loader className="animate-spin text-blue-600 mb-4" size={48} />
-          <p className="text-slate-500 font-bold">Loading Headlines...</p>
+          <p className="text-slate-500 font-bold">Loading today&apos;s headlines...</p>
         </div>
         {tutorialModal}
       </>
+    );
+  }
+
+  // Show "come back tomorrow" screen when limit is reached
+  if (hasReachedLimit || gameState === "limit_reached") {
+    return (
+      <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+        <div className="max-w-lg mx-auto mt-8">
+          {/* Daily Status Banner */}
+          <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 text-white shadow-xl mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar size={24} />
+              <span className="text-amber-100 text-sm font-medium">{getShortDate()}</span>
+            </div>
+            <h1 className="text-2xl font-black">Redacted</h1>
+            <p className="text-amber-100 text-sm mt-1">Daily headline word puzzle</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock size={40} className="text-amber-600" />
+            </div>
+
+            <h2 className="text-2xl font-black text-slate-900 mb-3">
+              All done for today!
+            </h2>
+
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              You&apos;ve completed all {DAILY_LIMIT} headlines for today.
+              Come back tomorrow for new puzzles!
+            </p>
+
+            <div className="bg-slate-100 rounded-xl p-4 mb-6">
+              <div className="text-sm font-medium text-slate-500 mb-1">New headlines in</div>
+              <div className="text-3xl font-black text-slate-900">{getTimeUntilReset()}</div>
+            </div>
+
+            <div className="text-sm text-slate-500">
+              Today&apos;s score: <span className="font-bold text-amber-600">{score}</span> / {DAILY_LIMIT}
+            </div>
+          </div>
+        </div>
+        <DisclaimerFooter />
+      </div>
     );
   }
 
@@ -618,38 +696,62 @@ export default function Redacted() {
         )}
       </div>
 
+      {/* DAILY STATUS BANNER */}
+      <div className="max-w-2xl mx-auto mb-3">
+        <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-xl p-3 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <Calendar size={18} className="hidden sm:block" />
+              <div>
+                <div className="text-xs text-amber-100 font-medium">Today&apos;s Headlines</div>
+                <div className="font-bold text-sm">{getShortDate()}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-1.5">
+                <span className="text-xs text-amber-100">Round: </span>
+                <span className="font-black">{playsToday + 1}/{DAILY_LIMIT}</span>
+              </div>
+              <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-1.5">
+                <span className="text-xs text-amber-100">Left: </span>
+                <span className="font-black">{remainingPlays}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
-          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
-            Redacted <span className="text-slate-300 hidden sm:inline">|</span>
+          <h1 className="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
+            Redacted
           </h1>
-          <p className="text-slate-500 text-xs md:text-sm font-medium">
+          <p className="text-slate-500 text-xs font-medium">
             Guess letters or solve the missing words
           </p>
         </div>
 
-        <div className="flex gap-2 md:gap-3 items-center">
+        <div className="flex gap-2 items-center">
           <button
             type="button"
             onClick={openTutorial}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
+            className="bg-white px-2.5 py-1.5 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 hover:border-amber-200 hover:text-amber-700 transition text-xs"
           >
-            <Info size={14} />{" "}
+            <Info size={14} />
             <span className="hidden sm:inline">How to play</span>
           </button>
 
-          {/* FEEDBACK BUTTON RESTORED */}
           <button
             type="button"
             onClick={() =>
               analytics.logFeedback?.() ?? analytics.logAction("feedback_click")
             }
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
+            className="bg-white px-2.5 py-1.5 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 hover:border-amber-200 hover:text-amber-700 transition text-xs"
           >
             Feedback
           </button>
 
-          <div className="bg-white px-3 py-1.5 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5">
+          <div className="bg-white px-3 py-1.5 rounded-full shadow-sm font-bold text-amber-600 border border-amber-100 flex items-center gap-1.5">
             <Trophy size={16} /> {score}
           </div>
         </div>
@@ -723,6 +825,24 @@ export default function Redacted() {
               <h3 className="text-xl font-black text-green-600 mb-2">
                 Headlines Restored!
               </h3>
+
+              {/* Show remaining rounds or come back tomorrow */}
+              {remainingPlays > 0 ? (
+                <p className="text-sm text-slate-500 mb-4">
+                  {remainingPlays} {remainingPlays === 1 ? "headline" : "headlines"} left today
+                </p>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 mx-4">
+                  <div className="flex items-center justify-center gap-2 text-amber-700 font-bold mb-1">
+                    <Clock size={18} />
+                    <span>All done for today!</span>
+                  </div>
+                  <p className="text-sm text-amber-600">
+                    New headlines in {getTimeUntilReset()}
+                  </p>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row justify-center gap-3">
                 <a
                   href={currentArticle?.link}
@@ -738,12 +858,14 @@ export default function Redacted() {
                 >
                   Read Story <ExternalLink size={16} />
                 </a>
-                <button
-                  onClick={() => setupRound()}
-                  className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
-                >
-                  Next Story <ArrowRight size={16} />
-                </button>
+                {remainingPlays > 0 && (
+                  <button
+                    onClick={() => setupRound(articles, playsToday)}
+                    className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    Next Story <ArrowRight size={16} />
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -753,6 +875,24 @@ export default function Redacted() {
               <h3 className="text-xl font-black text-red-600 mb-2">
                 Story Redacted.
               </h3>
+
+              {/* Show remaining rounds or come back tomorrow */}
+              {remainingPlays > 0 ? (
+                <p className="text-sm text-slate-500 mb-4">
+                  {remainingPlays} {remainingPlays === 1 ? "headline" : "headlines"} left today
+                </p>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 mx-4">
+                  <div className="flex items-center justify-center gap-2 text-amber-700 font-bold mb-1">
+                    <Clock size={18} />
+                    <span>All done for today!</span>
+                  </div>
+                  <p className="text-sm text-amber-600">
+                    New headlines in {getTimeUntilReset()}
+                  </p>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row justify-center gap-3">
                 <a
                   href={currentArticle?.link}
@@ -768,15 +908,17 @@ export default function Redacted() {
                 >
                   Read Story <ExternalLink size={16} />
                 </a>
-                <button
-                  onClick={() => {
-                    setScore(0);
-                    setupRound();
-                  }}
-                  className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
-                >
-                  Try Again
-                </button>
+                {remainingPlays > 0 && (
+                  <button
+                    onClick={() => {
+                      setScore(0);
+                      setupRound(articles, playsToday);
+                    }}
+                    className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
+                  >
+                    Try Again
+                  </button>
+                )}
               </div>
             </div>
           )}

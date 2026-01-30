@@ -6,13 +6,17 @@ import {
   ArrowRight,
   X,
   Info,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import useDailyLimit from "./hooks/useDailyLimit";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION - Pointing to your Netlify/Postgres bridge
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
+const DAILY_LIMIT = 5;
 
 export default function HeadlineHunter() {
   const [articles, setArticles] = useState([]);
@@ -28,6 +32,19 @@ export default function HeadlineHunter() {
   const roundIndex = score + 1;
   const analytics = useGameAnalytics("headline-hunter", roundIndex);
   const tutorialStorageKey = "headlinehunter_tutorial_dismissed";
+
+  // Daily limit tracking
+  const {
+    playsToday,
+    hasReachedLimit,
+    remainingPlays,
+    isLoading: isLimitLoading,
+    recordPlay,
+    getSeededIndex,
+    seededShuffle,
+    getShortDate,
+    getTimeUntilReset,
+  } = useDailyLimit("headline-hunter", DAILY_LIMIT);
 
   // Zoom scales: 8x -> 4x -> 2x -> 1x (Full) - Original Logic
   const ZOOM_SCALES = [8, 4, 2, 1];
@@ -96,24 +113,35 @@ export default function HeadlineHunter() {
   };
 
   const setupRound = useCallback(
-    (articleList = articles) => {
+    (articleList = articles, roundNum = playsToday) => {
       if (articleList.length < 4) return;
 
-      const correctIndex = Math.floor(Math.random() * articleList.length);
+      // Check if limit reached before setting up a new round
+      if (roundNum >= DAILY_LIMIT) {
+        setGameState("limit_reached");
+        return;
+      }
+
+      // Use seeded random for consistent daily content
+      const correctIndex = getSeededIndex(articleList.length, roundNum);
       const correct = articleList[correctIndex];
 
+      // Get decoys using seeded selection
       const decoys = [];
       const usedIndices = new Set([correctIndex]);
+      let decoyAttempt = 0;
 
-      while (decoys.length < 3) {
-        const idx = Math.floor(Math.random() * articleList.length);
+      while (decoys.length < 3 && decoyAttempt < 100) {
+        const idx = getSeededIndex(articleList.length, roundNum * 100 + decoyAttempt + 1);
         if (!usedIndices.has(idx)) {
           decoys.push(articleList[idx]);
           usedIndices.add(idx);
         }
+        decoyAttempt++;
       }
 
-      const options = [correct, ...decoys].sort(() => Math.random() - 0.5);
+      // Shuffle options using seeded shuffle for consistent order
+      const options = seededShuffle([correct, ...decoys], roundNum);
 
       setRound({ correct, options });
       setZoomLevel(0);
@@ -127,7 +155,7 @@ export default function HeadlineHunter() {
         roundIndex
       );
     },
-    [analytics, articles, roundIndex]
+    [analytics, articles, getSeededIndex, playsToday, roundIndex, seededShuffle]
   );
 
   const handleGuess = (articleId) => {
@@ -137,6 +165,8 @@ export default function HeadlineHunter() {
       setGameState("won");
       setScore(score + 1);
       setZoomLevel(3);
+      // Record the play for daily limit tracking
+      recordPlay();
       analytics.logWin({ score: score + 1 }, roundIndex);
     } else {
       const newWrong = [...wrongGuesses, articleId];
@@ -145,10 +175,17 @@ export default function HeadlineHunter() {
       if (zoomLevel < 2) {
         setZoomLevel((prev) => prev + 1);
       } else {
+        // Game lost - zoomed all the way out
         setZoomLevel(3);
+        setGameState("lost");
+        // Record the play for daily limit tracking
+        recordPlay();
+        analytics.logAction("guess_wrong_final", { zoom_level: 3 }, roundIndex);
       }
 
-      analytics.logAction("guess_wrong", { zoom_level: zoomLevel }, roundIndex);
+      if (zoomLevel < 2) {
+        analytics.logAction("guess_wrong", { zoom_level: zoomLevel }, roundIndex);
+      }
     }
   };
 
@@ -224,11 +261,55 @@ export default function HeadlineHunter() {
     </div>
   ) : null;
 
-  if (loading) {
+  if (loading || isLimitLoading) {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
         <Loader className="animate-spin text-blue-600 mb-4" size={48} />
-        <p className="text-slate-500 font-bold">Connecting to Database...</p>
+        <p className="text-slate-500 font-bold">Loading today&apos;s photos...</p>
+      </div>
+    );
+  }
+
+  // Show "come back tomorrow" screen when limit is reached
+  if (hasReachedLimit || gameState === "limit_reached") {
+    return (
+      <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+        <div className="max-w-lg mx-auto mt-8">
+          {/* Daily Status Banner */}
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white shadow-xl mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar size={24} />
+              <span className="text-purple-100 text-sm font-medium">{getShortDate()}</span>
+            </div>
+            <h1 className="text-2xl font-black">Headline Hunter</h1>
+            <p className="text-purple-100 text-sm mt-1">Daily photo identification game</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
+            <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock size={40} className="text-purple-600" />
+            </div>
+
+            <h2 className="text-2xl font-black text-slate-900 mb-3">
+              All done for today!
+            </h2>
+
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              You&apos;ve completed all {DAILY_LIMIT} photos for today.
+              Come back tomorrow for new challenges!
+            </p>
+
+            <div className="bg-slate-100 rounded-xl p-4 mb-6">
+              <div className="text-sm font-medium text-slate-500 mb-1">New photos in</div>
+              <div className="text-3xl font-black text-slate-900">{getTimeUntilReset()}</div>
+            </div>
+
+            <div className="text-sm text-slate-500">
+              Today&apos;s score: <span className="font-bold text-purple-600">{score}</span> / {DAILY_LIMIT}
+            </div>
+          </div>
+        </div>
+        <DisclaimerFooter />
       </div>
     );
   }
@@ -236,12 +317,38 @@ export default function HeadlineHunter() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       {tutorialModal}
-      <div className="max-w-2xl mx-auto mb-6 flex justify-between items-center">
+
+      {/* DAILY STATUS BANNER */}
+      <div className="max-w-2xl mx-auto mb-3">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl p-3 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <Calendar size={18} className="hidden sm:block" />
+              <div>
+                <div className="text-xs text-purple-200 font-medium">Today&apos;s Photos</div>
+                <div className="font-bold text-sm">{getShortDate()}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-1.5">
+                <span className="text-xs text-purple-200">Round: </span>
+                <span className="font-black">{playsToday + 1}/{DAILY_LIMIT}</span>
+              </div>
+              <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-1.5">
+                <span className="text-xs text-purple-200">Left: </span>
+                <span className="font-black">{remainingPlays}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
+          <h1 className="text-xl md:text-2xl font-black uppercase tracking-tighter text-slate-900">
             Headline Hunter
           </h1>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-xs md:text-sm">
             Can you identify the story from the detail?
           </p>
         </div>
@@ -249,19 +356,19 @@ export default function HeadlineHunter() {
           <button
             type="button"
             onClick={openTutorial}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+            className="bg-white px-2.5 py-1.5 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 hover:border-purple-200 hover:text-purple-700 transition text-xs"
           >
-            <Info size={16} /> How to play
+            <Info size={14} /> <span className="hidden sm:inline">How to</span> play
           </button>
           <button
             type="button"
             onClick={() => analytics.logFeedback()}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+            className="bg-white px-2.5 py-1.5 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 hover:border-purple-200 hover:text-purple-700 transition text-xs"
           >
             Feedback
           </button>
-          <div className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-            <Trophy size={18} /> {score}
+          <div className="bg-white px-3 py-1.5 rounded-full shadow-sm font-bold text-purple-600 border border-purple-100 flex items-center gap-1.5">
+            <Trophy size={16} /> {score}
           </div>
         </div>
       </div>
@@ -292,24 +399,92 @@ export default function HeadlineHunter() {
             <h2 className="text-2xl font-black text-green-700 mb-2">
               Great Eye!
             </h2>
-            <p className="text-green-800 mb-6 font-medium leading-tight">
-              "{round.correct.headline}"
+            <p className="text-green-800 mb-4 font-medium leading-tight">
+              &quot;{round.correct.headline}&quot;
             </p>
-            <div className="flex gap-3 justify-center">
+
+            {/* Show remaining rounds or come back tomorrow */}
+            {remainingPlays > 0 ? (
+              <p className="text-sm text-slate-500 mb-4">
+                {remainingPlays} {remainingPlays === 1 ? "photo" : "photos"} left today
+              </p>
+            ) : (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-center gap-2 text-purple-700 font-bold mb-1">
+                  <Clock size={18} />
+                  <span>All done for today!</span>
+                </div>
+                <p className="text-sm text-purple-600">
+                  New photos in {getTimeUntilReset()}
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <a
                 href={round.correct.link}
                 target="_blank"
                 rel="noreferrer"
-                className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-2"
+                className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center justify-center gap-2"
               >
                 Read Story <ExternalLink size={16} />
               </a>
-              <button
-                onClick={() => setupRound()}
-                className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
+              {remainingPlays > 0 && (
+                <button
+                  onClick={() => setupRound(articles, playsToday)}
+                  className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center justify-center gap-2"
+                >
+                  Next Round <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+        ) : gameState === "lost" ? (
+          <div className="bg-red-50 border border-red-200 p-6 rounded-xl text-center animate-in zoom-in duration-300">
+            <h2 className="text-2xl font-black text-red-700 mb-2">
+              Not quite!
+            </h2>
+            <p className="text-red-800 mb-4 font-medium leading-tight">
+              The answer was: &quot;{round.correct.headline}&quot;
+            </p>
+
+            {/* Show remaining rounds or come back tomorrow */}
+            {remainingPlays > 0 ? (
+              <p className="text-sm text-slate-500 mb-4">
+                {remainingPlays} {remainingPlays === 1 ? "photo" : "photos"} left today
+              </p>
+            ) : (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-center gap-2 text-purple-700 font-bold mb-1">
+                  <Clock size={18} />
+                  <span>All done for today!</span>
+                </div>
+                <p className="text-sm text-purple-600">
+                  New photos in {getTimeUntilReset()}
+                </p>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <a
+                href={round.correct.link}
+                target="_blank"
+                rel="noreferrer"
+                className="px-6 py-3 bg-white border border-red-200 text-red-700 rounded-lg font-bold hover:bg-red-100 transition flex items-center justify-center gap-2"
               >
-                Next Round <ArrowRight size={16} />
-              </button>
+                Read Story <ExternalLink size={16} />
+              </a>
+              {remainingPlays > 0 && (
+                <button
+                  onClick={() => {
+                    setScore(0);
+                    setupRound(articles, playsToday);
+                  }}
+                  className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center justify-center gap-2"
+                >
+                  Try Again <ArrowRight size={16} />
+                </button>
+              )}
             </div>
           </div>
         ) : (

@@ -10,9 +10,12 @@ import {
   AlertTriangle,
   Info,
   X,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
+import useDailyLimit from "./hooks/useDailyLimit";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -28,17 +31,33 @@ const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
 const MAX_PAGE_PROBE = 10;
+const DAILY_LIMIT = 1;
 
-const getRandomDate = () => {
+// Seeded random date generator for consistent daily content
+const getSeededDate = (seededRandom) => {
   const start = new Date(`${START_YEAR}-09-05`);
   const end = new Date(`${END_YEAR}-12-10`);
-  let date;
-  do {
-    date = new Date(
-      start.getTime() + Math.random() * (end.getTime() - start.getTime()),
-    );
-  } while (date.getDay() === 0 || date.getDay() === 6);
+  const totalDays = Math.floor((end - start) / (1000 * 60 * 60 * 24));
 
+  // Try up to 100 times to find a valid weekday
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const randomValue = seededRandom(attempt);
+    const dayOffset = Math.floor(randomValue * totalDays);
+    const date = new Date(start.getTime() + dayOffset * (1000 * 60 * 60 * 24));
+
+    // Skip weekends (papers weren't published)
+    if (date.getDay() !== 0 && date.getDay() !== 6) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return { full: `${yyyy}-${mm}-${dd}`, year: parseInt(yyyy) };
+    }
+  }
+
+  // Fallback: just return first valid attempt without weekend check
+  const randomValue = seededRandom(0);
+  const dayOffset = Math.floor(randomValue * totalDays);
+  const date = new Date(start.getTime() + dayOffset * (1000 * 60 * 60 * 24));
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
@@ -57,6 +76,7 @@ export default function TimeMachine() {
   const [pdfSource, setPdfSource] = useState(null);
   const [totalPages, setTotalPages] = useState(null);
   const [isPageCountLoading, setIsPageCountLoading] = useState(false);
+  const [gameEnded, setGameEnded] = useState(false);
 
   // UX State
   const [guessYear, setGuessYear] = useState(1975);
@@ -74,6 +94,17 @@ export default function TimeMachine() {
   const prefetchedPdfUrlsRef = useRef(new Map());
   const prefetchControllersRef = useRef(new Map());
   const analytics = useGameAnalytics("time-machine", pageNumber);
+
+  // Daily limit tracking
+  const {
+    hasReachedLimit,
+    remainingPlays,
+    isLoading: isLimitLoading,
+    recordPlay,
+    seededRandom,
+    getShortDate,
+    getTimeUntilReset,
+  } = useDailyLimit("time-machine", DAILY_LIMIT);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const maxPageLimit = totalPages
     ? Math.min(totalPages, MAX_PAGE_PROBE)
@@ -84,17 +115,17 @@ export default function TimeMachine() {
       : 1;
 
   useEffect(() => {
-    // Optional: Initialize PostHog here if you haven't done it in main.jsx
-    // posthog.init('YOUR_API_KEY', { api_host: 'https://app.posthog.com' });
-
-    startNewGame();
+    // Only start game when daily limit check is complete and not reached
+    if (!isLimitLoading && !hasReachedLimit) {
+      startNewGame();
+    }
     const updateWidth = () => {
       setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener("resize", updateWidth);
     setTimeout(updateWidth, 500);
     return () => window.removeEventListener("resize", updateWidth);
-  }, []);
+  }, [isLimitLoading, hasReachedLimit]);
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -136,14 +167,19 @@ export default function TimeMachine() {
   }, []);
 
   const startNewGame = useCallback(() => {
+    // Don't start if limit reached
+    if (hasReachedLimit) return;
+
     setLoading(true);
     setGameState("playing");
+    setGameEnded(false);
     setPageNumber(1);
     setRedactionBoxes([]);
     setRetryCount(0);
     setArchiveError(null);
     setFeedbackMsg(null);
-    setTargetDate(getRandomDate());
+    // Use seeded random for consistent daily content
+    setTargetDate(getSeededDate(seededRandom));
     setGuessYear(1975);
     setZoomLevel(1);
     setPdfSource(null);
@@ -161,17 +197,21 @@ export default function TimeMachine() {
 
     // 📊 TRACK: New Game Started
     analytics.logStart({}, 1);
-  }, [analytics]);
+  }, [analytics, hasReachedLimit, seededRandom]);
 
   const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
-      console.log(`No paper found for ${targetDate?.full}. Retrying...`);
-      setTargetDate(getRandomDate());
+      console.log(`No paper found for ${targetDate?.full}. Retrying with next seed...`);
+      // Use seeded random with retry count as additional seed
+      setTargetDate(getSeededDate((seed) => seededRandom(seed + retryCount + 1)));
       setRetryCount((prev) => prev + 1);
     } else {
       setLoading(false);
       setGameState("lost");
+      setGameEnded(true);
       setTotalPages((prevTotal) => prevTotal ?? pageNumber - 1);
+      // Record the play for daily limit tracking
+      recordPlay();
 
       // 📊 TRACK: Game Lost (Ran out of pages)
       analytics.logLoss(
@@ -183,7 +223,7 @@ export default function TimeMachine() {
         pageNumber,
       );
     }
-  }, [analytics, pageNumber, score, targetDate?.full, targetDate?.year]);
+  }, [analytics, pageNumber, recordPlay, retryCount, score, seededRandom, targetDate?.full, targetDate?.year]);
 
   const handleSubmitGuess = () => {
     if (!targetDate) return;
@@ -207,8 +247,11 @@ export default function TimeMachine() {
     // WIN CONDITION: +/- 2 Years
     if (isWin) {
       setGameState("won");
+      setGameEnded(true);
       setScore(score + 1);
       setFeedbackMsg(null);
+      // Record the play for daily limit tracking
+      recordPlay();
 
       // 📊 TRACK: Win Streak
       analytics.logWin(
@@ -224,9 +267,12 @@ export default function TimeMachine() {
       );
       if (pageNumber >= maxPageLimit) {
         setGameState("lost");
+        setGameEnded(true);
         setLoading(false);
         setTotalPages((prevTotal) => prevTotal ?? maxPageLimit);
         setFeedbackMsg(null);
+        // Record the play for daily limit tracking
+        recordPlay();
 
         // 📊 TRACK: Game Lost (Ran out of pages)
         analytics.logLoss(
@@ -544,6 +590,72 @@ export default function TimeMachine() {
     };
   }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
 
+  // Show loading state while checking daily limit
+  if (isLimitLoading) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center font-sans">
+        <Loader className="animate-spin text-blue-600 mb-4" size={48} />
+        <p className="text-slate-500 font-bold">Loading today&apos;s puzzle...</p>
+      </div>
+    );
+  }
+
+  // Show "come back tomorrow" screen when limit is reached
+  if (hasReachedLimit && gameEnded) {
+    return (
+      <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+        <div className="max-w-lg mx-auto mt-8">
+          {/* Daily Status Banner */}
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white shadow-xl mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <Calendar size={24} />
+              <span className="text-blue-100 text-sm font-medium">{getShortDate()}</span>
+            </div>
+            <h1 className="text-2xl font-black">Time Machine</h1>
+            <p className="text-blue-100 text-sm mt-1">Daily historical guessing game</p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Clock size={40} className="text-blue-600" />
+            </div>
+
+            <h2 className="text-2xl font-black text-slate-900 mb-3">
+              You&apos;ve completed today&apos;s puzzle!
+            </h2>
+
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              Come back tomorrow for a new historical newspaper to guess.
+              Everyone gets the same puzzle each day!
+            </p>
+
+            <div className="bg-slate-100 rounded-xl p-4 mb-6">
+              <div className="text-sm font-medium text-slate-500 mb-1">Next puzzle in</div>
+              <div className="text-3xl font-black text-slate-900">{getTimeUntilReset()}</div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="text-sm text-slate-500">
+                Your streak: <span className="font-bold text-blue-600">{score}</span>
+              </div>
+              {targetDate && (
+                <a
+                  href={`https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm"
+                >
+                  View today&apos;s full issue <ExternalLink size={14} />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+        <DisclaimerFooter />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       {showTutorial && (
@@ -635,33 +747,54 @@ export default function TimeMachine() {
         }
       `}</style>
 
+      {/* DAILY STATUS BANNER */}
+      <div className="max-w-6xl mx-auto mb-4">
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl md:rounded-2xl p-3 md:p-4 text-white shadow-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <Calendar size={20} className="hidden sm:block" />
+              <div>
+                <div className="text-xs text-blue-200 font-medium">Today&apos;s Puzzle</div>
+                <div className="font-bold text-sm sm:text-base">{getShortDate()}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 backdrop-blur rounded-lg px-3 py-1.5">
+                <span className="text-xs text-blue-100">Plays left: </span>
+                <span className="font-black">{remainingPlays}/{DAILY_LIMIT}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* HEADER */}
       <div className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
+          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900">
             Time Machine
           </h1>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-500 text-xs md:text-sm">
             Drag the slider to guess the year. Close counts (±2 years).
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-center">
           <button
             type="button"
             onClick={openTutorial}
-            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+            className="flex items-center gap-1.5 md:gap-2 rounded-full border border-slate-200 bg-white px-2.5 md:px-3 py-1.5 md:py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
           >
-            <Info size={14} /> How to play
+            <Info size={14} /> <span className="hidden sm:inline">How to</span> play
           </button>
           <button
             type="button"
             onClick={() => analytics.logFeedback()}
-            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 md:px-3 py-1.5 md:py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
           >
             Feedback
           </button>
-          <div className="bg-white px-5 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-            <Trophy size={18} /> Streak: {score}
+          <div className="bg-white px-3 md:px-5 py-1.5 md:py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
+            <Trophy size={16} /> {score}
           </div>
         </div>
       </div>
@@ -721,38 +854,53 @@ export default function TimeMachine() {
           {gameState === "won" ? (
             <div className="text-center py-6 bg-green-50 rounded-xl border border-green-100 animate-in zoom-in duration-300">
               <Confetti recycle={false} numberOfPieces={200} gravity={0.2} />
-              <h2 className="text-3xl font-black text-green-600 mb-2">
+              <h2 className="text-2xl md:text-3xl font-black text-green-600 mb-2">
                 CORRECT!
               </h2>
-              <p className="text-slate-600 mb-6">
+              <p className="text-slate-600 mb-4">
                 Published in{" "}
                 <span className="font-bold text-slate-900">
                   {targetDate?.year}
                 </span>
               </p>
 
+              {/* Show come back tomorrow message */}
+              {hasReachedLimit && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 mx-4">
+                  <div className="flex items-center justify-center gap-2 text-blue-700 font-bold mb-1">
+                    <Clock size={18} />
+                    <span>Come back tomorrow!</span>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    Next puzzle in {getTimeUntilReset()}
+                  </p>
+                </div>
+              )}
+
               <div className="flex flex-col gap-3 px-4">
                 <a
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                <button
-                  onClick={startNewGame}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
-                >
-                  <RefreshCw size={18} /> Play Again
-                </button>
+                {!hasReachedLimit && (
+                  <button
+                    onClick={startNewGame}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                  >
+                    <RefreshCw size={18} /> Play Again
+                  </button>
+                )}
               </div>
             </div>
           ) : gameState === "lost" ? (
             <div className="text-center py-6 bg-red-50 rounded-xl border border-red-100 animate-in zoom-in duration-300">
               <XCircle className="mx-auto text-red-500 mb-2" size={48} />
-              <h2 className="text-3xl font-black text-red-600 mb-2">
+              <h2 className="text-2xl md:text-3xl font-black text-red-600 mb-2">
                 GAME OVER
               </h2>
               <p className="text-slate-600 mb-4">
@@ -774,25 +922,40 @@ export default function TimeMachine() {
                 )}
               </p>
 
+              {/* Show come back tomorrow message */}
+              {hasReachedLimit && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4 mx-4">
+                  <div className="flex items-center justify-center gap-2 text-blue-700 font-bold mb-1">
+                    <Clock size={18} />
+                    <span>Come back tomorrow!</span>
+                  </div>
+                  <p className="text-sm text-blue-600">
+                    Next puzzle in {getTimeUntilReset()}
+                  </p>
+                </div>
+              )}
+
               <div className="flex flex-col gap-3 px-4">
                 <a
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                <button
-                  onClick={() => {
-                    setScore(0);
-                    startNewGame();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg"
-                >
-                  <RefreshCw size={18} /> Try Again
-                </button>
+                {!hasReachedLimit && (
+                  <button
+                    onClick={() => {
+                      setScore(0);
+                      startNewGame();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg"
+                  >
+                    <RefreshCw size={18} /> Try Again
+                  </button>
+                )}
               </div>
             </div>
           ) : (
