@@ -28,21 +28,48 @@ const START_YEAR = 1940;
 const END_YEAR = 2010;
 const COLLEGIAN_LCCN = "sn85054904";
 const MAX_PAGE_PROBE = 10;
+const DAILY_LIMIT = 1;
+const DAILY_STORAGE_KEY = "time-machine_daily_progress";
 
-const getRandomDate = () => {
-  const start = new Date(`${START_YEAR}-09-05`);
-  const end = new Date(`${END_YEAR}-12-10`);
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (dateKey) =>
+  new Date(`${dateKey}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const createSeededRandom = (seed) => {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return value / 2147483647;
+  };
+};
+
+const getDailyDate = (dateKey, roundNumber = 1) => {
+  const seed = Number(dateKey.replace(/-/g, "")) + roundNumber * 31;
+  const random = createSeededRandom(seed);
+  const start = new Date(`${START_YEAR}-09-05T00:00:00Z`);
+  const end = new Date(`${END_YEAR}-12-10T00:00:00Z`);
   let date;
+  let attempts = 0;
   do {
     date = new Date(
-      start.getTime() + Math.random() * (end.getTime() - start.getTime()),
+      start.getTime() + random() * (end.getTime() - start.getTime()),
     );
-  } while (date.getDay() === 0 || date.getDay() === 6);
+    attempts += 1;
+  } while (
+    (date.getUTCDay() === 0 || date.getUTCDay() === 6) &&
+    attempts < 25
+  );
 
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return { full: `${yyyy}-${mm}-${dd}`, year: parseInt(yyyy) };
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return { full: `${yyyy}-${mm}-${dd}`, year: parseInt(yyyy, 10) };
 };
 
 export default function TimeMachine() {
@@ -68,16 +95,45 @@ export default function TimeMachine() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [closestGuessDiff, setClosestGuessDiff] = useState(null);
+  const [dailyProgress, setDailyProgress] = useState(() => {
+    if (typeof window === "undefined") {
+      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+    }
+    const stored = localStorage.getItem(DAILY_STORAGE_KEY);
+    if (!stored) {
+      return { dateKey: getTodayKey(), roundsPlayed: 0 };
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (
+        typeof parsed?.dateKey === "string" &&
+        Number.isInteger(parsed?.roundsPlayed)
+      ) {
+        return parsed;
+      }
+    } catch (error) {
+      console.warn("Failed to read daily progress:", error);
+    }
+    return { dateKey: getTodayKey(), roundsPlayed: 0 };
+  });
+  const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
 
   const pdfWrapperRef = useRef(null);
   const pdfObjectUrlRef = useRef(null);
   const prefetchedPdfUrlsRef = useRef(new Map());
   const prefetchControllersRef = useRef(new Map());
-  const analytics = useGameAnalytics("time-machine", pageNumber);
+  const analytics = useGameAnalytics("time-machine", currentRoundNumber);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const maxPageLimit = totalPages
     ? Math.min(totalPages, MAX_PAGE_PROBE)
     : MAX_PAGE_PROBE;
+  const todayKey = getTodayKey();
+  const effectiveProgress =
+    dailyProgress.dateKey === todayKey
+      ? dailyProgress
+      : { dateKey: todayKey, roundsPlayed: 0 };
+  const roundsLeft = Math.max(DAILY_LIMIT - effectiveProgress.roundsPlayed, 0);
+  const formattedDate = formatDate(todayKey);
   const devicePixelRatio =
     typeof window !== "undefined"
       ? Math.min(window.devicePixelRatio || 1, 2)
@@ -95,6 +151,14 @@ export default function TimeMachine() {
     setTimeout(updateWidth, 500);
     return () => window.removeEventListener("resize", updateWidth);
   }, []);
+
+  useEffect(() => {
+    if (dailyProgress.dateKey !== todayKey) {
+      const refreshed = { dateKey: todayKey, roundsPlayed: 0 };
+      setDailyProgress(refreshed);
+      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
+    }
+  }, [dailyProgress.dateKey, todayKey]);
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -136,6 +200,27 @@ export default function TimeMachine() {
   }, []);
 
   const startNewGame = useCallback(() => {
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsPlayed: 0 };
+    if (baseProgress.roundsPlayed >= DAILY_LIMIT) {
+      setGameState("daily-complete");
+      setLoading(false);
+      setTargetDate(null);
+      setPdfSource(null);
+      setTotalPages(null);
+      return;
+    }
+    const nextRoundNumber = baseProgress.roundsPlayed + 1;
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsPlayed: nextRoundNumber,
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+    setCurrentRoundNumber(nextRoundNumber);
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
@@ -143,7 +228,7 @@ export default function TimeMachine() {
     setRetryCount(0);
     setArchiveError(null);
     setFeedbackMsg(null);
-    setTargetDate(getRandomDate());
+    setTargetDate(getDailyDate(todayKey, nextRoundNumber));
     setGuessYear(1975);
     setZoomLevel(1);
     setPdfSource(null);
@@ -160,13 +245,15 @@ export default function TimeMachine() {
     prefetchControllersRef.current.clear();
 
     // 📊 TRACK: New Game Started
-    analytics.logStart({}, 1);
-  }, [analytics]);
+    analytics.logStart({}, nextRoundNumber);
+  }, [analytics, dailyProgress]);
 
   const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
       console.log(`No paper found for ${targetDate?.full}. Retrying...`);
-      setTargetDate(getRandomDate());
+      setTargetDate(
+        getDailyDate(todayKey, currentRoundNumber + retryCount + 1),
+      );
       setRetryCount((prev) => prev + 1);
     } else {
       setLoading(false);
@@ -183,7 +270,16 @@ export default function TimeMachine() {
         pageNumber,
       );
     }
-  }, [analytics, pageNumber, score, targetDate?.full, targetDate?.year]);
+  }, [
+    analytics,
+    currentRoundNumber,
+    pageNumber,
+    retryCount,
+    score,
+    targetDate?.full,
+    targetDate?.year,
+    todayKey,
+  ]);
 
   const handleSubmitGuess = () => {
     if (!targetDate) return;
@@ -644,6 +740,14 @@ export default function TimeMachine() {
           <p className="text-slate-500 text-sm">
             Drag the slider to guess the year. Close counts (±2 years).
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Today: {formattedDate}
+            </span>
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Rounds left: {roundsLeft} / {DAILY_LIMIT}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -741,12 +845,18 @@ export default function TimeMachine() {
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                <button
-                  onClick={startNewGame}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
-                >
-                  <RefreshCw size={18} /> Play Again
-                </button>
+                {roundsLeft > 0 ? (
+                  <button
+                    onClick={startNewGame}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                  >
+                    <RefreshCw size={18} /> Play Again
+                  </button>
+                ) : (
+                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                    You&apos;ve finished today&apos;s round. Come back tomorrow!
+                  </div>
+                )}
               </div>
             </div>
           ) : gameState === "lost" ? (
@@ -784,15 +894,33 @@ export default function TimeMachine() {
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                <button
-                  onClick={() => {
-                    setScore(0);
-                    startNewGame();
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg"
-                >
-                  <RefreshCw size={18} /> Try Again
-                </button>
+                {roundsLeft > 0 ? (
+                  <button
+                    onClick={() => {
+                      setScore(0);
+                      startNewGame();
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg"
+                  >
+                    <RefreshCw size={18} /> Try Again
+                  </button>
+                ) : (
+                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                    That&apos;s today&apos;s Time Machine. Come back tomorrow!
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : gameState === "daily-complete" ? (
+            <div className="text-center py-6 bg-blue-50 rounded-xl border border-blue-100 animate-in zoom-in duration-300">
+              <h2 className="text-2xl font-black text-blue-700 mb-2">
+                That&apos;s all for today
+              </h2>
+              <p className="text-slate-600 mb-4">
+                You&apos;ve played today&apos;s Time Machine round.
+              </p>
+              <div className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-sm">
+                Come back tomorrow for a new front page.
               </div>
             </div>
           ) : (
