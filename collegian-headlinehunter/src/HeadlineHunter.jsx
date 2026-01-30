@@ -25,6 +25,20 @@ const formatDate = (dateKey) =>
     year: "numeric",
   });
 
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
 const createSeededRandom = (seed) => {
   let value = seed % 2147483647;
   if (value <= 0) value += 2147483646;
@@ -90,6 +104,7 @@ export default function HeadlineHunter() {
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const roundCompletedRef = useRef(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
   const analytics = useGameAnalytics("headline-hunter", currentRoundNumber);
   const tutorialStorageKey = "headlinehunter_tutorial_dismissed";
@@ -156,6 +171,13 @@ export default function HeadlineHunter() {
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
     }
   }, [dailyProgress.dateKey, todayKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   // --- EVERYTHING BELOW IS YOUR ORIGINAL UNTOUCHED COMPONENT ---
 
@@ -405,7 +427,11 @@ export default function HeadlineHunter() {
               You&apos;ve completed all {DAILY_LIMIT} Headline Hunter rounds.
             </p>
             <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-              Come back tomorrow for a fresh lineup.
+              New rounds in{" "}
+              <span className="font-black text-slate-800">
+                {formatCountdown(timeUntilReset)}
+              </span>
+              .
             </div>
           </div>
         ) : (
@@ -456,7 +482,11 @@ export default function HeadlineHunter() {
                     </button>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      You&apos;re done for today. Come back tomorrow!
+                      You&apos;re done for today. Next round in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
                     </div>
                   )}
                 </div>
