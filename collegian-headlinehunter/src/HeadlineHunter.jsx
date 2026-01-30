@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Loader,
   Trophy,
@@ -13,6 +13,61 @@ import DisclaimerFooter from "./components/DisclaimerFooter";
 
 // CONFIGURATION - Pointing to your Netlify/Postgres bridge
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
+const DAILY_LIMIT = 5;
+const DAILY_STORAGE_KEY = "headlinehunter_daily_progress";
+
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (dateKey) =>
+  new Date(`${dateKey}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+const createSeededRandom = (seed) => {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return value / 2147483647;
+  };
+};
+
+const seededShuffle = (items, seed) => {
+  const random = createSeededRandom(seed);
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+const getArticleSortKey = (item) =>
+  `${item?.id ?? item?.link ?? item?.headline ?? ""}`;
+
+const getDailyRounds = (articles, dateKey) => {
+  const seed = Number(dateKey.replace(/-/g, ""));
+  const sorted = [...articles].sort((a, b) =>
+    getArticleSortKey(a).localeCompare(getArticleSortKey(b)),
+  );
+  return seededShuffle(sorted, seed).slice(0, DAILY_LIMIT);
+};
 
 export default function HeadlineHunter() {
   const [articles, setArticles] = useState([]);
@@ -24,10 +79,45 @@ export default function HeadlineHunter() {
   const [wrongGuesses, setWrongGuesses] = useState([]);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [dailyProgress, setDailyProgress] = useState(() => {
+    if (typeof window === "undefined") {
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
+    }
+    const stored = localStorage.getItem(DAILY_STORAGE_KEY);
+    if (!stored) {
+      return { dateKey: getTodayKey(), roundsCompleted: 0 };
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      const roundsCompleted = Number.isInteger(parsed?.roundsCompleted)
+        ? parsed.roundsCompleted
+        : Number.isInteger(parsed?.roundsPlayed)
+          ? parsed.roundsPlayed
+          : 0;
+      if (typeof parsed?.dateKey === "string") {
+        return { dateKey: parsed.dateKey, roundsCompleted };
+      }
+    } catch (error) {
+      console.warn("Failed to read daily progress:", error);
+    }
+    return { dateKey: getTodayKey(), roundsCompleted: 0 };
+  });
+  const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
+  const roundCompletedRef = useRef(false);
+  const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
-  const roundIndex = score + 1;
-  const analytics = useGameAnalytics("headline-hunter", roundIndex);
+  const analytics = useGameAnalytics("headline-hunter", currentRoundNumber);
   const tutorialStorageKey = "headlinehunter_tutorial_dismissed";
+  const todayKey = getTodayKey();
+  const effectiveProgress =
+    dailyProgress.dateKey === todayKey
+      ? dailyProgress
+      : { dateKey: todayKey, roundsCompleted: 0 };
+  const roundsLeft = Math.max(
+    DAILY_LIMIT - effectiveProgress.roundsCompleted,
+    0,
+  );
+  const formattedDate = formatDate(todayKey);
 
   // Zoom scales: 8x -> 4x -> 2x -> 1x (Full) - Original Logic
   const ZOOM_SCALES = [8, 4, 2, 1];
@@ -74,6 +164,21 @@ export default function HeadlineHunter() {
     fetchNews();
   }, []);
 
+  useEffect(() => {
+    if (dailyProgress.dateKey !== todayKey) {
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
+      setDailyProgress(refreshed);
+      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
+    }
+  }, [dailyProgress.dateKey, todayKey]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   // --- EVERYTHING BELOW IS YOUR ORIGINAL UNTOUCHED COMPONENT ---
 
   useEffect(() => {
@@ -99,36 +204,69 @@ export default function HeadlineHunter() {
     (articleList = articles) => {
       if (articleList.length < 4) return;
 
-      const correctIndex = Math.floor(Math.random() * articleList.length);
-      const correct = articleList[correctIndex];
-
-      const decoys = [];
-      const usedIndices = new Set([correctIndex]);
-
-      while (decoys.length < 3) {
-        const idx = Math.floor(Math.random() * articleList.length);
-        if (!usedIndices.has(idx)) {
-          decoys.push(articleList[idx]);
-          usedIndices.add(idx);
-        }
+      const todayKey = getTodayKey();
+      const baseProgress =
+        dailyProgress.dateKey === todayKey
+          ? dailyProgress
+          : { dateKey: todayKey, roundsCompleted: 0 };
+      if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
+        setGameState("daily-complete");
+        return;
       }
 
-      const options = [correct, ...decoys].sort(() => Math.random() - 0.5);
+      const roundNumber = baseProgress.roundsCompleted + 1;
+      const dailyRounds = getDailyRounds(articleList, todayKey);
+      const correct = dailyRounds[roundNumber - 1];
+      if (!correct) {
+        setGameState("daily-complete");
+        return;
+      }
+
+      const roundSeed = Number(todayKey.replace(/-/g, "")) + roundNumber * 53;
+      const remaining = articleList.filter((item) => item.id !== correct.id);
+      const decoys = seededShuffle(remaining, roundSeed).slice(0, 3);
+      const options = seededShuffle(
+        [correct, ...decoys],
+        roundSeed + 17,
+      );
+      setCurrentRoundNumber(roundNumber);
+      roundCompletedRef.current = false;
 
       setRound({ correct, options });
       setZoomLevel(0);
       setWrongGuesses([]);
       setGameState("playing");
 
-      analytics.logStart({ total_articles: articleList.length }, roundIndex);
+      analytics.logStart({ total_articles: articleList.length }, roundNumber);
       analytics.logAction(
         "round_start",
         { options_count: options.length },
-        roundIndex
+        roundNumber,
       );
     },
-    [analytics, articles, roundIndex]
+    [analytics, articles, dailyProgress]
   );
+
+  const markRoundComplete = useCallback(() => {
+    if (roundCompletedRef.current) {
+      return;
+    }
+    roundCompletedRef.current = true;
+    const todayKey = getTodayKey();
+    const baseProgress =
+      dailyProgress.dateKey === todayKey
+        ? dailyProgress
+        : { dateKey: todayKey, roundsCompleted: 0 };
+    const updatedProgress = {
+      dateKey: todayKey,
+      roundsCompleted: Math.max(
+        baseProgress.roundsCompleted,
+        currentRoundNumber,
+      ),
+    };
+    setDailyProgress(updatedProgress);
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
+  }, [currentRoundNumber, dailyProgress]);
 
   const handleGuess = (articleId) => {
     if (gameState !== "playing") return;
@@ -137,7 +275,8 @@ export default function HeadlineHunter() {
       setGameState("won");
       setScore(score + 1);
       setZoomLevel(3);
-      analytics.logWin({ score: score + 1 }, roundIndex);
+      analytics.logWin({ score: score + 1 }, currentRoundNumber);
+      markRoundComplete();
     } else {
       const newWrong = [...wrongGuesses, articleId];
       setWrongGuesses(newWrong);
@@ -148,7 +287,11 @@ export default function HeadlineHunter() {
         setZoomLevel(3);
       }
 
-      analytics.logAction("guess_wrong", { zoom_level: zoomLevel }, roundIndex);
+      analytics.logAction(
+        "guess_wrong",
+        { zoom_level: zoomLevel },
+        currentRoundNumber,
+      );
     }
   };
 
@@ -244,6 +387,14 @@ export default function HeadlineHunter() {
           <p className="text-slate-500 text-sm">
             Can you identify the story from the detail?
           </p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Today: {formattedDate}
+            </span>
+            <span className="rounded-full bg-slate-200/70 px-3 py-1">
+              Rounds left: {roundsLeft} / {DAILY_LIMIT}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -267,68 +418,98 @@ export default function HeadlineHunter() {
       </div>
 
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="relative w-full aspect-[4/3] bg-slate-200 rounded-xl overflow-hidden shadow-xl border-4 border-white">
-          {gameState === "won" && (
-            <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />
-          )}
-          <div
-            className="w-full h-full transition-transform duration-700 ease-in-out"
-            style={{
-              backgroundImage: `url(${round?.correct.image})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              transform: `scale(${ZOOM_SCALES[zoomLevel]})`,
-            }}
-          />
-          {gameState === "playing" && (
-            <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-white/20">
-              Zoom: {ZOOM_SCALES[zoomLevel]}x
-            </div>
-          )}
-        </div>
-
-        {gameState === "won" ? (
-          <div className="bg-green-50 border border-green-200 p-6 rounded-xl text-center animate-in zoom-in duration-300">
-            <h2 className="text-2xl font-black text-green-700 mb-2">
-              Great Eye!
+        {gameState === "daily-complete" ? (
+          <div className="bg-white border border-slate-200 p-8 rounded-xl text-center shadow-sm space-y-4">
+            <h2 className="text-2xl font-black text-slate-900">
+              That&apos;s it for today
             </h2>
-            <p className="text-green-800 mb-6 font-medium leading-tight">
-              "{round.correct.headline}"
+            <p className="text-slate-600">
+              You&apos;ve completed all {DAILY_LIMIT} Headline Hunter rounds.
             </p>
-            <div className="flex gap-3 justify-center">
-              <a
-                href={round.correct.link}
-                target="_blank"
-                rel="noreferrer"
-                className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-2"
-              >
-                Read Story <ExternalLink size={16} />
-              </a>
-              <button
-                onClick={() => setupRound()}
-                className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
-              >
-                Next Round <ArrowRight size={16} />
-              </button>
+            <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+              New rounds in{" "}
+              <span className="font-black text-slate-800">
+                {formatCountdown(timeUntilReset)}
+              </span>
+              .
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {round?.options.map(
-              (option) =>
-                !wrongGuesses.includes(option.id) && (
-                  <button
-                    key={option.id}
-                    onClick={() => handleGuess(option.id)}
-                    className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left group"
+          <>
+            <div className="relative w-full aspect-[4/3] bg-slate-200 rounded-xl overflow-hidden shadow-xl border-4 border-white">
+              {gameState === "won" && (
+                <Confetti recycle={false} numberOfPieces={200} gravity={0.3} />
+              )}
+              <div
+                className="w-full h-full transition-transform duration-700 ease-in-out"
+                style={{
+                  backgroundImage: `url(${round?.correct.image})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  transform: `scale(${ZOOM_SCALES[zoomLevel]})`,
+                }}
+              />
+              {gameState === "playing" && (
+                <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border border-white/20">
+                  Zoom: {ZOOM_SCALES[zoomLevel]}x
+                </div>
+              )}
+            </div>
+
+            {gameState === "won" ? (
+              <div className="bg-green-50 border border-green-200 p-6 rounded-xl text-center animate-in zoom-in duration-300">
+                <h2 className="text-2xl font-black text-green-700 mb-2">
+                  Great Eye!
+                </h2>
+                <p className="text-green-800 mb-6 font-medium leading-tight">
+                  "{round.correct.headline}"
+                </p>
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <a
+                    href={round.correct.link}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-2"
                   >
-                    <span className="font-bold text-slate-700 group-hover:text-blue-700 text-lg leading-tight block">
-                      {option.headline}
-                    </span>
-                  </button>
-                )
+                    Read Story <ExternalLink size={16} />
+                  </a>
+                  {roundsLeft > 0 ? (
+                    <button
+                      onClick={() => setupRound()}
+                      className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
+                    >
+                      Next Round <ArrowRight size={16} />
+                    </button>
+                  ) : (
+                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                      You&apos;re done for today. Next round in{" "}
+                      <span className="font-black text-slate-800">
+                        {formatCountdown(timeUntilReset)}
+                      </span>
+                      .
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {round?.options.map(
+                  (option) =>
+                    !wrongGuesses.includes(option.id) && (
+                      <button
+                        key={option.id}
+                        onClick={() => handleGuess(option.id)}
+                        className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left group"
+                      >
+                        <span className="font-bold text-slate-700 group-hover:text-blue-700 text-lg leading-tight block">
+                          {option.headline}
+                        </span>
+                      </button>
+                    ),
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
       <DisclaimerFooter />
