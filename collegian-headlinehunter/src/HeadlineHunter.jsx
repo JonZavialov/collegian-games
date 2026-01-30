@@ -369,7 +369,7 @@ export default function HeadlineHunter() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center">
+      <div className="min-h-[100svh] bg-slate-100 flex flex-col items-center justify-center px-4">
         <Loader className="animate-spin text-blue-600 mb-4" size={48} />
         <p className="text-slate-500 font-bold">Connecting to Database...</p>
       </div>
@@ -377,9 +377,9 @@ export default function HeadlineHunter() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+    <div className="min-h-[100svh] bg-slate-100 p-4 sm:p-6 font-sans text-slate-900">
       {tutorialModal}
-      <div className="max-w-2xl mx-auto mb-6 flex justify-between items-center">
+      <div className="max-w-2xl mx-auto mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
             Headline Hunter
@@ -396,7 +396,7 @@ export default function HeadlineHunter() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={openTutorial}

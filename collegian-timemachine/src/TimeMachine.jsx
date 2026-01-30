@@ -691,7 +691,7 @@ export default function TimeMachine() {
   }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+    <div className="min-h-[100svh] bg-slate-100 p-4 sm:p-6 font-sans text-slate-900">
       {showTutorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">

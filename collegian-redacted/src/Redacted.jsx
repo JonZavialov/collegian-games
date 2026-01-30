@@ -714,7 +714,7 @@ export default function Redacted() {
   if (loading) {
     return (
       <>
-        <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center font-sans">
+        <div className="min-h-[100svh] bg-slate-100 flex flex-col items-center justify-center font-sans px-4">
           <Loader className="animate-spin text-blue-600 mb-4" size={48} />
           <p className="text-slate-500 font-bold">Loading Headlines...</p>
         </div>
@@ -726,7 +726,7 @@ export default function Redacted() {
   if (error) {
     return (
       <>
-        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
+        <div className="min-h-[100svh] bg-slate-100 flex items-center justify-center p-6">
           <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
             <AlertCircle className="mx-auto mb-4 text-red-500" size={48} />
             <h2 className="text-xl font-bold text-slate-900 mb-2">
@@ -747,7 +747,7 @@ export default function Redacted() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-32">
+    <div className="min-h-[100svh] bg-slate-100 p-4 sm:p-6 font-sans text-slate-900 pb-32">
       {tutorialModal}
 
       {/* Confetti fixed to background layer */}
@@ -767,7 +767,7 @@ export default function Redacted() {
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
+      <div className="max-w-2xl mx-auto mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
             Redacted <span className="text-slate-300 hidden sm:inline">|</span>
@@ -785,7 +785,7 @@ export default function Redacted() {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 items-center">
+        <div className="flex flex-wrap gap-2 md:gap-3 items-center">
           <button
             type="button"
             onClick={openTutorial}

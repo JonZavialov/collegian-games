@@ -47,7 +47,7 @@ function PsuWordle() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-red-700">
+      <div className="min-h-[100svh] flex items-center justify-center text-red-700">
         {loadError}
       </div>
     );
@@ -55,7 +55,7 @@ function PsuWordle() {
 
   if (!solutionObj)
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[100svh] flex items-center justify-center">
         Loading...
       </div>
     );
@@ -197,7 +197,7 @@ function Game({ solution, hint, articleUrl, reset }) {
   ]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-[100svh] flex flex-col">
       <div className="flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6 flex-1">
       {showTutorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
