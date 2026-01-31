@@ -200,9 +200,9 @@ function Game({ solution, hint, articleUrl, reset }) {
     <div className="min-h-screen flex flex-col">
       <div className="flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6 flex-1">
       {showTutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-6 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-sm sm:max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
+            <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-4 sm:p-6 text-white">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
