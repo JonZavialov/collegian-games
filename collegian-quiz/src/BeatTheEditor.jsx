@@ -55,6 +55,7 @@ const clampNumber = (value, min, max) => Math.min(max, Math.max(min, value));
 export default function BeatTheEditor() {
   const [loading, setLoading] = useState(true);
   const [quizData, setQuizData] = useState(null);
+  const [publishedAt, setPublishedAt] = useState(null);
   const [loadError, setLoadError] = useState("");
   const [gameState, setGameState] = useState("intro");
   const [viewMode, setViewMode] = useState(() => {
@@ -135,11 +136,13 @@ export default function BeatTheEditor() {
         const payload = await response.json();
         if (isMounted) {
           setQuizData(normalizeQuizData(payload.data));
+          setPublishedAt(payload.publishedAt || null);
           setLoadError("");
         }
       } catch (error) {
         if (isMounted) {
           setQuizData(null);
+          setPublishedAt(null);
           setLoadError("Quiz data is unavailable. Please try again later.");
         }
       } finally {
@@ -272,8 +275,11 @@ export default function BeatTheEditor() {
     </button>
   );
 
-  const resetGameState = (nextData) => {
+  const resetGameState = (nextData, nextPublishedAt = null) => {
     setQuizData(nextData);
+    if (nextPublishedAt !== null) {
+      setPublishedAt(nextPublishedAt);
+    }
     setGameState("intro");
     setCurrentQ(0);
     setScore(0);
@@ -301,7 +307,10 @@ export default function BeatTheEditor() {
     }
 
     const payload = await response.json();
-    resetGameState(normalizeQuizData(payload.data || nextData));
+    resetGameState(
+      normalizeQuizData(payload.data || nextData),
+      payload.publishedAt || null,
+    );
   };
 
   const handleAdminRestore = (nextData) => {
@@ -510,6 +519,26 @@ export default function BeatTheEditor() {
                 )}
               </div>
             </div>
+            {(quizData.authorName || publishedAt) && (
+              <div className="mt-4 pt-4 border-t border-slate-100 text-xs text-slate-500">
+                {quizData.authorName && (
+                  <span>By {quizData.authorName}</span>
+                )}
+                {quizData.authorName && publishedAt && (
+                  <span className="mx-1">·</span>
+                )}
+                {publishedAt && (
+                  <span>
+                    Published{" "}
+                    {new Date(publishedAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <button

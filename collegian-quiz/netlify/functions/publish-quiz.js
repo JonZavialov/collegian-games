@@ -112,7 +112,7 @@ exports.handler = async (event) => {
         data = EXCLUDED.data,
         published_at = EXCLUDED.published_at,
         updated_at = NOW()
-      RETURNING data
+      RETURNING data, published_at
       `,
       [QUIZ_SLUG, quiz],
     );
@@ -121,7 +121,10 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ data: result.rows[0].data }),
+      body: JSON.stringify({
+        data: result.rows[0].data,
+        publishedAt: result.rows[0].published_at,
+      }),
     };
   } catch (error) {
     await client.query("ROLLBACK");
