@@ -1,3 +1,5 @@
+import EmailSignup from "./EmailSignup";
+
 export default function Modal({
   isCorrect,
   turn,
@@ -7,7 +9,7 @@ export default function Modal({
   logAction,
   logContentClick,
 }) {
-  
+
   const copyToClipboard = () => {
     // Generate a simple result string (e.g. "Football Wordle: 4/6")
     const text = `Football Wordle 🏈\nScore: ${isCorrect ? turn : 'X'}/6`;
@@ -17,12 +19,12 @@ export default function Modal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white p-10 rounded-lg shadow-xl max-w-sm w-full text-center">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white p-8 rounded-xl shadow-xl max-w-sm w-full text-center my-4">
         <h1 className="text-3xl font-bold mb-4">
-          {isCorrect ? 'TOUCHDOWN! 🏈' : 'Turnover on Downs 😞'}
+          {isCorrect ? 'TOUCHDOWN!' : 'Turnover on Downs'}
         </h1>
-        
+
         <p className="mb-6 text-gray-600">
           The word was:{' '}
           {articleUrl ? (
@@ -41,21 +43,23 @@ export default function Modal({
             <span className="font-bold text-penn-state-blue">{solution}</span>
           )}
         </p>
-        
+
         <div className="flex flex-col gap-3">
-            <button 
+            <button
                 onClick={copyToClipboard}
                 className="bg-gray-800 text-white py-3 rounded hover:bg-gray-900 transition font-bold"
             >
-                Share Score 📤
+                Share Score
             </button>
-            <button 
+            <button
                 onClick={handleReset}
                 className="border-2 border-gray-800 text-gray-800 py-3 rounded hover:bg-gray-100 transition font-bold"
             >
                 Play Again
             </button>
         </div>
+
+        <EmailSignup gameName="Valley Vocab" />
       </div>
     </div>
   )
