@@ -114,7 +114,7 @@ export default function EmailSignup({ gameName = "Game" }) {
   }
 
   return (
-    <div className="mt-6 p-5 bg-gradient-to-br from-blue-50 to-slate-50 border border-slate-200 rounded-xl">
+    <div className="mt-6 p-4 sm:p-5 bg-gradient-to-br from-blue-50 to-slate-50 border border-slate-200 rounded-xl">
       <div className="flex items-center justify-center gap-2 mb-3">
         <Mail size={20} className="text-blue-600" />
         <h3 className="font-black text-slate-800 text-lg">Stay Connected</h3>

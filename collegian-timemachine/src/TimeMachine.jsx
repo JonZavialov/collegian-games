@@ -694,9 +694,9 @@ export default function TimeMachine() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       {showTutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-xs sm:max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
+            <div className="p-4 sm:p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-black text-slate-900">
@@ -800,13 +800,13 @@ export default function TimeMachine() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <button
             type="button"
             onClick={openTutorial}
             className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
           >
-            <Info size={14} /> How to play
+            <Info size={14} /> <span className="hidden sm:inline">How to play</span>
           </button>
           <button
             type="button"
@@ -824,7 +824,7 @@ export default function TimeMachine() {
       <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         {/* CONTROLS (Left Side) */}
         <div
-          className={`md:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-6 transition-colors ${
+          className={`md:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4 md:p-6 md:sticky md:top-6 transition-colors ${
             shake ? "border-red-400 bg-red-50" : ""
           }`}
         >
@@ -1035,7 +1035,7 @@ export default function TimeMachine() {
 
         {/* PDF VIEWER */}
         <div
-          className="md:col-span-8 min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
+          className="md:col-span-8 min-h-[300px] md:min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
           ref={pdfWrapperRef}
         >
           <div className="absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-700 shadow-md">
@@ -1083,7 +1083,7 @@ export default function TimeMachine() {
 
           {shouldRenderPdf && (
             <div
-              className={`relative bg-white min-h-[800px] shadow-2xl ${
+              className={`relative bg-white min-h-[400px] md:min-h-[800px] shadow-2xl ${
                 zoomLevel === 1
                   ? "overflow-y-auto overflow-x-hidden"
                   : "overflow-auto"
