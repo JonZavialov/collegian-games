@@ -22,6 +22,7 @@ export const normalizeQuizData = (data = {}) => {
     editorScore: safeNumber(data.editorScore, 0),
     editorImageUrl: data.editorImageUrl ?? "",
     editorBlurb: data.editorBlurb ?? "",
+    authorName: data.authorName ?? "",
     questions: Array.isArray(data.questions) ? data.questions : [],
   };
 
