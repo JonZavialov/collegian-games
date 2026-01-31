@@ -180,8 +180,8 @@ export default function BeatTheEditor() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-xs sm:max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
         <div className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -472,7 +472,7 @@ export default function BeatTheEditor() {
       <>
         <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4 flex gap-2">
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex gap-1 sm:gap-2">
             {tutorialButton}
             {feedbackButton}
           </div>
@@ -578,7 +578,7 @@ export default function BeatTheEditor() {
       <>
         <div className="min-h-[400px] bg-white p-6 rounded-xl max-w-md mx-auto relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4 flex gap-2">
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 flex gap-1 sm:gap-2">
             {tutorialButton}
             {feedbackButton}
           </div>
@@ -690,9 +690,9 @@ export default function BeatTheEditor() {
 
     return (
       <>
-        <div className="bg-slate-50 p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
+        <div className="bg-slate-50 p-4 sm:p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
           {tutorialModal}
-          <div className="absolute top-4 right-4 z-10">{tutorialButton}</div>
+          <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">{tutorialButton}</div>
           {showConfetti && (
             <Confetti
               width={window.innerWidth}

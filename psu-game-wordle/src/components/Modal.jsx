@@ -19,8 +19,8 @@ export default function Modal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white p-8 rounded-xl shadow-xl max-w-sm w-full text-center my-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white p-5 sm:p-8 rounded-xl shadow-xl max-w-xs sm:max-w-sm w-full text-center my-4">
         <h1 className="text-3xl font-bold mb-4">
           {isCorrect ? 'TOUCHDOWN!' : 'Turnover on Downs'}
         </h1>

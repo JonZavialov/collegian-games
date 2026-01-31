@@ -292,9 +292,9 @@ export default function Redacted() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="p-6 md:p-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-sm sm:max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
+        <div className="p-4 sm:p-6 md:p-8">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xl md:text-2xl font-black text-slate-900">
@@ -748,7 +748,7 @@ export default function Redacted() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-32">
+    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-24 md:pb-32">
       {tutorialModal}
 
       {/* Confetti fixed to background layer */}
@@ -768,7 +768,7 @@ export default function Redacted() {
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
+      <div className="max-w-2xl mx-auto mb-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
             Redacted <span className="text-slate-300 hidden sm:inline">|</span>
@@ -786,7 +786,7 @@ export default function Redacted() {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 items-center">
+        <div className="flex gap-2 md:gap-3 items-center flex-wrap">
           <button
             type="button"
             onClick={openTutorial}
@@ -796,7 +796,6 @@ export default function Redacted() {
             <span className="hidden sm:inline">How to play</span>
           </button>
 
-          {/* FEEDBACK BUTTON RESTORED */}
           <button
             type="button"
             onClick={() =>
@@ -1030,7 +1029,7 @@ export default function Redacted() {
             <button
               type="submit"
               disabled={!guess}
-              className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 sm:p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700 transition-colors"
             >
               <ArrowRight size={20} />
             </button>
