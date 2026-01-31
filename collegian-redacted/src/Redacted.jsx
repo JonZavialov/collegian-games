@@ -768,7 +768,7 @@ export default function Redacted() {
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
+      <div className="max-w-2xl mx-auto mb-4 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
         <div>
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
             Redacted <span className="text-slate-300 hidden sm:inline">|</span>
@@ -786,7 +786,7 @@ export default function Redacted() {
           </div>
         </div>
 
-        <div className="flex gap-2 md:gap-3 items-center">
+        <div className="flex gap-2 md:gap-3 items-center flex-wrap">
           <button
             type="button"
             onClick={openTutorial}
@@ -796,7 +796,6 @@ export default function Redacted() {
             <span className="hidden sm:inline">How to play</span>
           </button>
 
-          {/* FEEDBACK BUTTON RESTORED */}
           <button
             type="button"
             onClick={() =>
