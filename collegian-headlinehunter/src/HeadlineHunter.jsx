@@ -10,6 +10,7 @@ import {
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
+import EmailSignup from "./components/EmailSignup";
 
 // CONFIGURATION - Pointing to your Netlify/Postgres bridge
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
@@ -490,6 +491,7 @@ export default function HeadlineHunter() {
                     </div>
                   )}
                 </div>
+                <EmailSignup gameName="Headline Hunter" />
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">

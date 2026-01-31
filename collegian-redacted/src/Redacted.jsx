@@ -14,6 +14,7 @@ import Confetti from "react-confetti";
 import posthog from "posthog-js";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
+import EmailSignup from "./components/EmailSignup";
 
 // CONFIGURATION
 const DB_API_ENDPOINT = "/.netlify/functions/get-articles";
@@ -974,6 +975,10 @@ export default function Redacted() {
                   )}
                 </div>
               </div>
+            )}
+
+            {(gameState === "won" || gameState === "lost") && (
+              <EmailSignup gameName="Redacted" />
             )}
           </div>
         )}

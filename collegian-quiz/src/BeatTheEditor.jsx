@@ -14,6 +14,7 @@ import {
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 import AdminPanel from "./components/AdminPanel";
+import EmailSignup from "./components/EmailSignup";
 import { normalizeQuizData } from "./utils/quizData";
 
 const ADMIN_QUERY_KEY = "admin";
@@ -777,6 +778,8 @@ export default function BeatTheEditor() {
               );
             })}
           </div>
+
+          <EmailSignup gameName="Beat the Editor" />
         </div>
         <DisclaimerFooter />
       </>
