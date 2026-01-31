@@ -18,7 +18,7 @@ exports.handler = async () => {
     await client.connect();
     const result = await client.query(
       `
-      SELECT data
+      SELECT data, published_at
       FROM quiz_configs
       WHERE slug = $1
       LIMIT 1
@@ -35,7 +35,10 @@ exports.handler = async () => {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ data: result.rows[0].data }),
+      body: JSON.stringify({
+        data: result.rows[0].data,
+        publishedAt: result.rows[0].published_at,
+      }),
     };
   } catch (error) {
     return {
