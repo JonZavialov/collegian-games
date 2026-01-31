@@ -14,6 +14,7 @@ import {
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
+import EmailSignup from "./components/EmailSignup";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -911,6 +912,7 @@ export default function TimeMachine() {
                     .
                   </div>
                 )}
+                <EmailSignup gameName="Time Machine" />
               </div>
             </div>
           ) : gameState === "lost" ? (
@@ -967,6 +969,7 @@ export default function TimeMachine() {
                     .
                   </div>
                 )}
+                <EmailSignup gameName="Time Machine" />
               </div>
             </div>
           ) : gameState === "daily-complete" ? (
@@ -984,6 +987,7 @@ export default function TimeMachine() {
                 </span>
                 .
               </div>
+              <EmailSignup gameName="Time Machine" />
             </div>
           ) : (
             <div className={`space-y-6 ${shake ? "shake-element" : ""}`}>
