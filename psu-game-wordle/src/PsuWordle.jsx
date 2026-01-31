@@ -198,72 +198,72 @@ function Game({ solution, hint, articleUrl, reset }) {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <div className="flex flex-col items-center pt-6 sm:pt-10 px-3 sm:px-6 flex-1">
+      <div className="flex flex-col items-center pt-4 sm:pt-10 px-2 sm:px-6 flex-1 pb-4">
       {showTutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-6 text-white">
-              <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm p-3 sm:p-4">
+          <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="bg-gradient-to-r from-blue-700 via-blue-600 to-sky-500 p-4 sm:p-6 text-white">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.35em] text-blue-100">
+                  <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.25em] sm:tracking-[0.35em] text-blue-100">
                     Quick Tutorial
                   </p>
-                  <h2 className="text-2xl font-black">How to play Valley Vocab</h2>
-                  <p className="mt-2 text-sm text-blue-100">
+                  <h2 className="text-xl sm:text-2xl font-black">How to play Valley Vocab</h2>
+                  <p className="mt-1 sm:mt-2 text-xs sm:text-sm text-blue-100">
                     Guess the Penn State themed word in six tries or fewer.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={closeTutorial}
-                  className="rounded-full bg-white/10 px-3 py-1 text-lg font-semibold text-white/80 transition hover:bg-white/20 hover:text-white"
+                  className="rounded-full bg-white/10 p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-lg font-semibold text-white/80 transition hover:bg-white/20 hover:text-white touch-manipulation"
                   aria-label="Close tutorial"
                 >
                   ×
                 </button>
               </div>
             </div>
-            <div className="space-y-5 p-6">
-              <div className="grid gap-4 text-sm text-slate-700">
+            <div className="space-y-4 sm:space-y-5 p-4 sm:p-6">
+              <div className="grid gap-3 sm:gap-4 text-sm text-slate-700">
                 <div className="flex gap-3">
-                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
+                  <span className="mt-0.5 flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
                     1
                   </span>
-                  <p>Type a word and press enter. Letters will change color.</p>
+                  <p className="text-sm">Type a word and press enter. Letters will change color.</p>
                 </div>
                 <div className="flex gap-3">
-                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
+                  <span className="mt-0.5 flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-black text-indigo-700">
                     2
                   </span>
-                  <p>
+                  <p className="text-sm">
                     Green is the right letter in the right spot. Yellow means
                     the letter is in the word but misplaced.
                   </p>
                 </div>
                 <div className="flex gap-3">
-                  <span className="mt-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
+                  <span className="mt-0.5 flex h-6 w-6 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-full bg-purple-100 text-xs font-black text-purple-700">
                     3
                   </span>
-                  <p>
+                  <p className="text-sm">
                     Keep guessing until you solve it or run out of attempts. A
                     hint appears after a miss.
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100 pt-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
                   <input
                     type="checkbox"
                     checked={dontShowAgain}
                     onChange={(event) => setDontShowAgain(event.target.checked)}
-                    className="h-4 w-4 accent-blue-600"
+                    className="h-5 w-5 sm:h-4 sm:w-4 accent-blue-600"
                   />
                   Don&apos;t show again
                 </label>
                 <button
                   type="button"
                   onClick={closeTutorial}
-                  className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black"
+                  className="w-full sm:w-auto rounded-lg bg-slate-900 px-5 py-3 sm:py-2 text-sm font-bold text-white shadow-lg shadow-slate-900/20 transition hover:bg-black touch-manipulation"
                 >
                   Let&apos;s play
                 </button>
@@ -273,22 +273,22 @@ function Game({ solution, hint, articleUrl, reset }) {
         </div>
       )}
 
-      <div className="w-full max-w-md flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-penn-state-blue tracking-tighter">
+      <div className="w-full max-w-md flex flex-col gap-2 sm:gap-3 sm:flex-row sm:items-center sm:justify-between mb-4 sm:mb-8">
+        <h1 className="text-2xl sm:text-4xl font-extrabold text-penn-state-blue tracking-tighter">
           Valley Vocab
         </h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={openTutorial}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 min-h-[40px] text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
           >
             How to play
           </button>
           <button
             type="button"
             onClick={() => logFeedback()}
-            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 min-h-[40px] text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
           >
             Feedback
           </button>

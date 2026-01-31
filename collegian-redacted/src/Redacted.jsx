@@ -291,30 +291,30 @@ export default function Redacted() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="p-6 md:p-8">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="p-4 sm:p-6 md:p-8">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-900">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-black text-slate-900">
                 How to play Redacted
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-xs sm:text-sm text-slate-600">
                 Unredact the headline before you run out of hearts.
               </p>
             </div>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+              className="rounded-full border border-slate-200 bg-white p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
               aria-label="Close tutorial"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <div className="mt-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+          <div className="mt-4 sm:mt-5">
+            <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
               Core gameplay
             </div>
             <ol className="mt-3 space-y-3 text-sm text-slate-700">
@@ -343,20 +343,20 @@ export default function Redacted() {
             </p>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+          <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100 pt-4">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <input
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(event) => setDontShowAgain(event.target.checked)}
-                className="h-4 w-4 accent-blue-600"
+                className="h-5 w-5 sm:h-4 sm:w-4 accent-blue-600"
               />
               Don't show again
             </label>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto rounded-xl bg-blue-600 px-5 py-3 sm:py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 flex items-center justify-center gap-2 touch-manipulation"
             >
               Let&apos;s play <ArrowRight size={18} />
             </button>
@@ -747,7 +747,7 @@ export default function Redacted() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900 pb-32">
+    <div className="min-h-screen bg-slate-100 p-3 sm:p-4 font-sans text-slate-900 pb-36 sm:pb-32">
       {tutorialModal}
 
       {/* Confetti fixed to background layer */}
@@ -767,47 +767,50 @@ export default function Redacted() {
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto mb-4 flex justify-between items-center sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
-            Redacted <span className="text-slate-300 hidden sm:inline">|</span>
-          </h1>
-          <p className="text-slate-500 text-xs md:text-sm font-medium">
-            Guess letters or solve the missing words
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2 text-[0.7rem] font-semibold text-slate-500">
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Today: {formattedDate}
-            </span>
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Rounds left: {roundsLeft} / {DAILY_LIMIT}
-            </span>
+      <div className="max-w-2xl mx-auto mb-3 sm:mb-4 sticky top-0 bg-slate-100/95 backdrop-blur z-20 py-2 -mx-1 px-1">
+        {/* Mobile-first header layout */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 sm:gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-tighter text-slate-900 flex items-center gap-2">
+              Redacted
+            </h1>
+            <p className="text-slate-500 text-[11px] sm:text-xs md:text-sm font-medium">
+              Guess letters or solve the missing words
+            </p>
+            <div className="mt-1.5 sm:mt-2 flex flex-wrap gap-1.5 sm:gap-2 text-[10px] sm:text-[0.7rem] font-semibold text-slate-500">
+              <span className="rounded-full bg-slate-200/70 px-2 sm:px-3 py-0.5 sm:py-1">
+                Today: {formattedDate}
+              </span>
+              <span className="rounded-full bg-slate-200/70 px-2 sm:px-3 py-0.5 sm:py-1">
+                Rounds left: {roundsLeft} / {DAILY_LIMIT}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="flex gap-2 md:gap-3 items-center">
-          <button
-            type="button"
-            onClick={openTutorial}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
-          >
-            <Info size={14} />{" "}
-            <span className="hidden sm:inline">How to play</span>
-          </button>
+          <div className="flex gap-1.5 sm:gap-2 md:gap-3 items-center flex-wrap">
+            <button
+              type="button"
+              onClick={openTutorial}
+              className="bg-white px-2.5 sm:px-3 py-2 min-h-[40px] rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 sm:gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm touch-manipulation"
+            >
+              <Info size={14} />
+              <span className="hidden sm:inline">How to play</span>
+              <span className="sm:hidden">Help</span>
+            </button>
 
-          {/* FEEDBACK BUTTON RESTORED */}
-          <button
-            type="button"
-            onClick={() =>
-              analytics.logFeedback?.() ?? analytics.logAction("feedback_click")
-            }
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm"
-          >
-            Feedback
-          </button>
+            <button
+              type="button"
+              onClick={() =>
+                analytics.logFeedback?.() ?? analytics.logAction("feedback_click")
+              }
+              className="bg-white px-2.5 sm:px-3 py-2 min-h-[40px] rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs md:text-sm touch-manipulation"
+            >
+              Feedback
+            </button>
 
-          <div className="bg-white px-3 py-1.5 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5">
-            <Trophy size={16} /> {score}
+            <div className="bg-white px-2.5 sm:px-3 py-1.5 min-h-[40px] rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5">
+              <Trophy size={16} /> {score}
+            </div>
           </div>
         </div>
       </div>
@@ -842,14 +845,14 @@ export default function Redacted() {
               </div>
             )}
 
-            <div className="flex flex-wrap justify-center gap-x-2 gap-y-3 text-center leading-relaxed">
+            <div className="flex flex-wrap justify-center gap-x-1.5 sm:gap-x-2 gap-y-2 sm:gap-y-3 text-center leading-relaxed">
               {words.map((word) => {
                 if (word.hidden) {
                   const characters = word.text.split("");
                   return (
                     <span
                       key={word.id}
-                      className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-lg bg-slate-50 px-2 py-1 shadow-inner ring-1 ring-slate-200/80"
+                      className="inline-flex flex-wrap items-center justify-center gap-0.5 sm:gap-1 md:gap-1.5 rounded-lg bg-slate-50 px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 shadow-inner ring-1 ring-slate-200/80"
                     >
                       {characters.map((char, index) => {
                         const isRevealed = word.revealedMap?.[index];
@@ -859,7 +862,7 @@ export default function Redacted() {
                         return (
                           <span
                             key={`${word.id}-${index}`}
-                            className={`flex h-8 w-6 items-center justify-center rounded border border-slate-300 bg-white text-lg font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 md:h-10 md:w-8 md:text-2xl ${
+                            className={`flex h-6 w-4 sm:h-7 sm:w-5 md:h-10 md:w-8 items-center justify-center rounded border border-slate-300 bg-white text-sm sm:text-base md:text-2xl font-bold uppercase text-slate-800 shadow-sm transition-all duration-300 ${
                               showCharacter
                                 ? "text-slate-800"
                                 : "text-transparent"
@@ -879,7 +882,7 @@ export default function Redacted() {
                 return (
                   <span
                     key={word.id}
-                    className={`text-2xl md:text-4xl font-bold transition-all duration-500 ${
+                    className={`text-xl sm:text-2xl md:text-4xl font-bold transition-all duration-500 ${
                       word.justRevealed
                         ? "text-blue-600 scale-110"
                         : "text-slate-800"
@@ -894,16 +897,16 @@ export default function Redacted() {
             </div>
 
             {gameState === "won" && (
-              <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
-                <h3 className="text-xl font-black text-green-600 mb-2">
+              <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
+                <h3 className="text-lg sm:text-xl font-black text-green-600 mb-2">
                   Headlines Restored!
                 </h3>
-                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
                   <a
                     href={currentArticle?.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-5 py-2.5 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-50 flex items-center justify-center gap-2"
+                    className="px-5 py-3 sm:py-2.5 min-h-[48px] bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-50 flex items-center justify-center gap-2 touch-manipulation"
                     onClick={() =>
                       analytics.logAction("article_clicked", {
                         url: currentArticle.link,
@@ -916,7 +919,7 @@ export default function Redacted() {
                   {roundsLeft > 0 ? (
                     <button
                       onClick={() => setupRound()}
-                      className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
+                      className="px-5 py-3 sm:py-2.5 min-h-[48px] bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg touch-manipulation"
                     >
                       Next Story <ArrowRight size={16} />
                     </button>
@@ -934,16 +937,16 @@ export default function Redacted() {
             )}
 
             {gameState === "lost" && (
-              <div className="mt-6 pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
-                <h3 className="text-xl font-black text-red-600 mb-2">
+              <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-slate-100 text-center animate-in slide-in-from-bottom-4">
+                <h3 className="text-lg sm:text-xl font-black text-red-600 mb-2">
                   Story Redacted.
                 </h3>
-                <div className="flex flex-col sm:flex-row justify-center gap-3">
+                <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
                   <a
                     href={currentArticle?.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 flex items-center justify-center gap-2"
+                    className="px-5 py-3 sm:py-2.5 min-h-[48px] bg-white border border-slate-200 text-slate-700 rounded-lg font-bold hover:bg-slate-50 flex items-center justify-center gap-2 touch-manipulation"
                     onClick={() =>
                       analytics.logAction("article_clicked", {
                         url: currentArticle.link,
@@ -959,7 +962,7 @@ export default function Redacted() {
                         setScore(0);
                         setupRound();
                       }}
-                      className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
+                      className="px-8 py-3 min-h-[48px] bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg touch-manipulation"
                     >
                       Try Again
                     </button>
@@ -982,26 +985,27 @@ export default function Redacted() {
       <DisclaimerFooter />
 
       <div
-        className={`fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 transition-transform duration-300 z-50 ${
+        className={`fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-3 sm:p-4 transition-transform duration-300 z-50 safe-area-bottom ${
           gameState !== "playing" ? "translate-y-full" : ""
         }`}
+        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
         <div className="max-w-2xl mx-auto relative">
-          {/* NEW LIVES INDICATOR */}
-          <div className="absolute -top-12 right-0 flex justify-end w-full px-2">
+          {/* Lives indicator - positioned above input */}
+          <div className="absolute -top-11 sm:-top-12 right-0 flex justify-end w-full px-1 sm:px-2">
             <div
-              className={`bg-white px-4 py-2 rounded-t-xl shadow-lg font-black border-t border-x flex items-center gap-2 transition-all duration-200 ${
+              className={`bg-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-t-xl shadow-lg font-black border-t border-x flex items-center gap-1.5 sm:gap-2 transition-all duration-200 ${
                 lives <= 2
                   ? "text-red-600 border-red-200 bg-red-50"
                   : "text-slate-700 border-slate-200"
               } ${lifeLostAnimation ? "scale-125 bg-red-500 text-white" : ""}`}
             >
               <Heart
-                size={20}
+                size={18}
                 fill="currentColor"
                 className={lifeLostAnimation ? "animate-ping" : ""}
               />
-              <span className="text-lg">{lives}</span>
+              <span className="text-base sm:text-lg">{lives}</span>
             </div>
           </div>
 
@@ -1014,31 +1018,34 @@ export default function Redacted() {
               type="text"
               value={guess}
               onChange={(e) => setGuess(e.target.value)}
-              placeholder="Guess a letter or a word..."
-              className={`w-full bg-slate-100 border-2 text-slate-900 text-lg font-bold py-3 pl-5 pr-12 rounded-xl focus:outline-none focus:bg-white transition-all placeholder-slate-400 ${
+              placeholder="Guess a letter or word..."
+              className={`w-full bg-slate-100 border-2 text-slate-900 text-base sm:text-lg font-bold py-3 sm:py-3 pl-4 sm:pl-5 pr-14 rounded-xl focus:outline-none focus:bg-white transition-all placeholder-slate-400 touch-manipulation ${
                 shake
                   ? "border-red-500 bg-red-50"
                   : "border-slate-200 focus:border-blue-500"
               }`}
               autoComplete="off"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
             />
             <button
               type="submit"
               disabled={!guess}
-              className="absolute right-2 top-2 p-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700 transition-colors"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 sm:p-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700 transition-colors touch-manipulation"
             >
               <ArrowRight size={20} />
             </button>
           </form>
 
           <div className="flex justify-between items-center mt-2 px-1">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
               {words.filter((w) => w.hidden).length} Words Left
             </span>
             <button
               type="button"
               onClick={handleGiveUp}
-              className="text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors uppercase tracking-wider p-3 -mr-3 cursor-pointer select-none active:scale-95"
+              className="text-[10px] sm:text-xs font-bold text-slate-400 hover:text-red-500 flex items-center gap-1 transition-colors uppercase tracking-wider p-3 -mr-3 min-h-[44px] cursor-pointer select-none active:scale-95 touch-manipulation"
             >
               <Flag size={12} /> Reveal Answer
             </button>

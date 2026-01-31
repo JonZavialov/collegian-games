@@ -693,30 +693,30 @@ export default function TimeMachine() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       {showTutorial && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-start justify-between gap-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-black text-slate-900">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
                     How to play Time Machine
                   </h2>
-                  <p className="mt-1 text-sm text-slate-600">
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600">
                     Scan a front page and guess the year (±2 wins).
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={closeTutorial}
-                  className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+                  className="rounded-full border border-slate-200 bg-white p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
                   aria-label="Close tutorial"
                 >
-                  <X size={16} />
+                  <X size={18} />
                 </button>
               </div>
 
-              <div className="mt-5">
-                <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+              <div className="mt-4 sm:mt-5">
+                <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
                   Core gameplay
                 </div>
                 <ol className="mt-3 space-y-3 text-sm text-slate-700">
@@ -745,20 +745,20 @@ export default function TimeMachine() {
                 </p>
               </div>
 
-              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+              <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100 pt-4">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
                   <input
                     type="checkbox"
                     checked={dontShowAgain}
                     onChange={(event) => setDontShowAgain(event.target.checked)}
-                    className="h-4 w-4 accent-blue-600"
+                    className="h-5 w-5 sm:h-4 sm:w-4 accent-blue-600"
                   />
                   Don&apos;t show again
                 </label>
                 <button
                   type="button"
                   onClick={closeTutorial}
-                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+                  className="w-full sm:w-auto rounded-xl bg-blue-600 px-5 py-3 sm:py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 touch-manipulation"
                 >
                   Start
                 </button>
@@ -782,59 +782,61 @@ export default function TimeMachine() {
       `}</style>
 
       {/* HEADER */}
-      <div className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
-            Time Machine
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Drag the slider to guess the year. Close counts (±2 years).
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Today: {formattedDate}
-            </span>
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Rounds left: {roundsLeft} / {DAILY_LIMIT}
-            </span>
+      <div className="max-w-6xl mx-auto mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-slate-900">
+              Time Machine
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              Drag the slider to guess the year. Close counts (±2 years).
+            </p>
+            <div className="mt-1.5 sm:mt-2 flex flex-wrap gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-slate-500">
+              <span className="rounded-full bg-slate-200/70 px-2 sm:px-3 py-0.5 sm:py-1">
+                Today: {formattedDate}
+              </span>
+              <span className="rounded-full bg-slate-200/70 px-2 sm:px-3 py-0.5 sm:py-1">
+                Rounds left: {roundsLeft} / {DAILY_LIMIT}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={openTutorial}
-            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
-          >
-            <Info size={14} /> How to play
-          </button>
-          <button
-            type="button"
-            onClick={() => analytics.logFeedback()}
-            className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
-          >
-            Feedback
-          </button>
-          <div className="bg-white px-5 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-            <Trophy size={18} /> Streak: {score}
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={openTutorial}
+              className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-slate-200 bg-white px-2.5 sm:px-3 py-2 min-h-[40px] text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
+            >
+              <Info size={14} /> <span className="hidden sm:inline">How to play</span><span className="sm:hidden">Help</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => analytics.logFeedback()}
+              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 sm:px-3 py-2 min-h-[40px] text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
+            >
+              Feedback
+            </button>
+            <div className="bg-white px-3 sm:px-5 py-2 min-h-[40px] rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base">
+              <Trophy size={16} className="sm:w-[18px] sm:h-[18px]" /> Streak: {score}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-        {/* CONTROLS (Left Side) */}
+      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-4 sm:gap-6 items-start">
+        {/* CONTROLS - On mobile, display after PDF viewer using order */}
         <div
-          className={`md:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 p-6 sticky top-6 transition-colors ${
+          className={`md:col-span-4 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 md:sticky md:top-6 transition-colors order-2 md:order-1 ${
             shake ? "border-red-400 bg-red-50" : ""
           }`}
         >
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="mb-4 sm:mb-6">
+            <div className="flex items-center gap-2 mb-3 sm:mb-4">
               <div
-                className={`w-3 h-3 rounded-full ${
+                className={`w-2.5 sm:w-3 h-2.5 sm:h-3 rounded-full ${
                   loading ? "bg-amber-400 animate-pulse" : "bg-green-500"
                 }`}
               ></div>
-              <span className="font-bold text-slate-700">
+              <span className="font-bold text-slate-700 text-sm sm:text-base">
                 {loading
                   ? "Scanning Archives..."
                   : `Viewing Page ${pageNumber}${
@@ -844,25 +846,25 @@ export default function TimeMachine() {
             </div>
 
             {feedbackMsg && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                <AlertTriangle size={16} /> {feedbackMsg}
+              <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-red-100 text-red-700 text-xs sm:text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                <AlertTriangle size={14} className="shrink-0" /> {feedbackMsg}
               </div>
             )}
 
             {archiveError && (
-              <div className="mb-4 p-3 bg-amber-100 text-amber-800 text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                <AlertTriangle size={16} /> {archiveError}
+              <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-amber-100 text-amber-800 text-xs sm:text-sm font-bold rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+                <AlertTriangle size={14} className="shrink-0" /> {archiveError}
               </div>
             )}
 
             {retryCount > 0 && loading && pageNumber === 1 && (
-              <p className="text-xs text-slate-400 animate-pulse">
+              <p className="text-[10px] sm:text-xs text-slate-400 animate-pulse">
                 Searching for a valid issue... (Attempt {retryCount})
               </p>
             )}
 
             {!loading && !archiveError && (
-              <p className="mt-2 text-xs font-semibold text-slate-400">
+              <p className="mt-2 text-[10px] sm:text-xs font-semibold text-slate-400">
                 {isPageCountLoading
                   ? "Counting total pages..."
                   : totalPages
@@ -873,37 +875,37 @@ export default function TimeMachine() {
           </div>
 
           {gameState === "won" ? (
-            <div className="text-center py-6 bg-green-50 rounded-xl border border-green-100 animate-in zoom-in duration-300">
-              <Confetti recycle={false} numberOfPieces={200} gravity={0.2} />
-              <h2 className="text-3xl font-black text-green-600 mb-2">
+            <div className="text-center py-4 sm:py-6 bg-green-50 rounded-xl border border-green-100 animate-in zoom-in duration-300">
+              <Confetti recycle={false} numberOfPieces={150} gravity={0.2} />
+              <h2 className="text-2xl sm:text-3xl font-black text-green-600 mb-2">
                 CORRECT!
               </h2>
-              <p className="text-slate-600 mb-6">
+              <p className="text-slate-600 mb-4 sm:mb-6 text-sm sm:text-base">
                 Published in{" "}
                 <span className="font-bold text-slate-900">
                   {targetDate?.year}
                 </span>
               </p>
 
-              <div className="flex flex-col gap-3 px-4">
+              <div className="flex flex-col gap-2 sm:gap-3 px-2 sm:px-4">
                 <a
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
-                  className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
+                  onClick={handleViewFullIssue}
+                  className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-xs sm:text-sm mb-1 sm:mb-2 min-h-[40px] touch-manipulation"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
                 {roundsLeft > 0 ? (
                   <button
                     onClick={startNewGame}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                    className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 min-h-[48px] bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg touch-manipulation"
                   >
                     <RefreshCw size={18} /> Play Again
                   </button>
                 ) : (
-                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                  <div className="rounded-lg bg-slate-100 px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600">
                     You&apos;ve finished today&apos;s round. Come back in{" "}
                     <span className="font-black text-slate-800">
                       {formatCountdown(timeUntilReset)}
@@ -914,12 +916,12 @@ export default function TimeMachine() {
               </div>
             </div>
           ) : gameState === "lost" ? (
-            <div className="text-center py-6 bg-red-50 rounded-xl border border-red-100 animate-in zoom-in duration-300">
-              <XCircle className="mx-auto text-red-500 mb-2" size={48} />
-              <h2 className="text-3xl font-black text-red-600 mb-2">
+            <div className="text-center py-4 sm:py-6 bg-red-50 rounded-xl border border-red-100 animate-in zoom-in duration-300">
+              <XCircle className="mx-auto text-red-500 mb-2" size={40} />
+              <h2 className="text-2xl sm:text-3xl font-black text-red-600 mb-2">
                 GAME OVER
               </h2>
-              <p className="text-slate-600 mb-4">
+              <p className="text-slate-600 mb-3 sm:mb-4 text-sm sm:text-base">
                 You ran out of pages!
                 <br />
                 It was{" "}
@@ -938,13 +940,13 @@ export default function TimeMachine() {
                 )}
               </p>
 
-              <div className="flex flex-col gap-3 px-4">
+              <div className="flex flex-col gap-2 sm:gap-3 px-2 sm:px-4">
                 <a
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
-                  className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
+                  onClick={handleViewFullIssue}
+                  className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-xs sm:text-sm mb-1 sm:mb-2 min-h-[40px] touch-manipulation"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
@@ -954,12 +956,12 @@ export default function TimeMachine() {
                       setScore(0);
                       startNewGame();
                     }}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg"
+                    className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 min-h-[48px] bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition shadow-lg touch-manipulation"
                   >
                     <RefreshCw size={18} /> Try Again
                   </button>
                 ) : (
-                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                  <div className="rounded-lg bg-slate-100 px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600">
                     That&apos;s today&apos;s Time Machine. Come back in{" "}
                     <span className="font-black text-slate-800">
                       {formatCountdown(timeUntilReset)}
@@ -970,14 +972,14 @@ export default function TimeMachine() {
               </div>
             </div>
           ) : gameState === "daily-complete" ? (
-            <div className="text-center py-6 bg-blue-50 rounded-xl border border-blue-100 animate-in zoom-in duration-300">
-              <h2 className="text-2xl font-black text-blue-700 mb-2">
+            <div className="text-center py-4 sm:py-6 bg-blue-50 rounded-xl border border-blue-100 animate-in zoom-in duration-300">
+              <h2 className="text-xl sm:text-2xl font-black text-blue-700 mb-2">
                 That&apos;s all for today
               </h2>
-              <p className="text-slate-600 mb-4">
+              <p className="text-slate-600 mb-3 sm:mb-4 text-sm sm:text-base">
                 You&apos;ve played today&apos;s Time Machine round.
               </p>
-              <div className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-slate-600 shadow-sm">
+              <div className="rounded-lg bg-white px-3 sm:px-4 py-3 text-xs sm:text-sm font-semibold text-slate-600 shadow-sm">
                 New round in{" "}
                 <span className="font-black text-slate-800">
                   {formatCountdown(timeUntilReset)}
@@ -986,12 +988,12 @@ export default function TimeMachine() {
               </div>
             </div>
           ) : (
-            <div className={`space-y-6 ${shake ? "shake-element" : ""}`}>
+            <div className={`space-y-4 sm:space-y-6 ${shake ? "shake-element" : ""}`}>
               <div className="text-center">
-                <div className="text-6xl font-black text-blue-600 mb-2 tabular-nums tracking-tighter">
+                <div className="text-5xl sm:text-6xl font-black text-blue-600 mb-1 sm:mb-2 tabular-nums tracking-tighter">
                   {guessYear}
                 </div>
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
+                <div className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 sm:mb-4">
                   Range: {guessYear - 2} – {guessYear + 2}
                 </div>
 
@@ -1002,9 +1004,9 @@ export default function TimeMachine() {
                   value={guessYear}
                   onChange={(e) => setGuessYear(parseInt(e.target.value))}
                   disabled={loading}
-                  className="w-full h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-500 transition-all"
+                  className="w-full h-4 sm:h-3 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600 hover:accent-blue-500 transition-all touch-manipulation"
                 />
-                <div className="flex justify-between text-xs text-slate-400 mt-2 font-bold">
+                <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 mt-2 font-bold">
                   <span>{START_YEAR}</span>
                   <span>{END_YEAR}</span>
                 </div>
@@ -1013,7 +1015,7 @@ export default function TimeMachine() {
               <button
                 onClick={handleSubmitGuess}
                 disabled={loading}
-                className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-blue-600 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
+                className="w-full py-4 min-h-[56px] bg-slate-900 text-white rounded-xl font-bold text-base sm:text-lg hover:bg-blue-600 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group touch-manipulation"
               >
                 {loading ? "Analyzing..." : "Lock In Guess"}{" "}
                 <ArrowRight
@@ -1024,46 +1026,44 @@ export default function TimeMachine() {
             </div>
           )}
 
-          <div className="mt-8 pt-4 border-t border-slate-100 text-xs text-slate-400">
+          <div className="mt-6 sm:mt-8 pt-4 border-t border-slate-100 text-[10px] sm:text-xs text-slate-400">
             Source: Pennsylvania Newspaper Archive
           </div>
         </div>
 
         {/* PDF VIEWER */}
         <div
-          className="md:col-span-8 min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
+          className="md:col-span-8 min-h-[350px] sm:min-h-[500px] md:min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden order-1 md:order-2"
           ref={pdfWrapperRef}
         >
-          <div className="absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-700 shadow-md">
-            <div className="flex items-center gap-3">
-              <span className="font-bold text-slate-800">Zoom</span>
+          {/* Zoom controls - simplified for mobile */}
+          <div className="absolute left-1/2 top-2 sm:top-4 z-40 -translate-x-1/2 rounded-full bg-white/95 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-md">
+            <div className="flex items-center gap-1.5 sm:gap-3">
+              <span className="font-bold text-slate-800 text-[10px] sm:text-sm hidden sm:inline">Zoom</span>
               <button
                 type="button"
                 onClick={() => setZoomLevel((prev) => Math.max(1, prev - 0.25))}
-                className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
+                className="h-8 w-8 sm:h-8 sm:w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100 touch-manipulation flex items-center justify-center"
               >
                 -
               </button>
-              <span className="min-w-[3.5rem] text-center tabular-nums">
+              <span className="min-w-[2.5rem] sm:min-w-[3.5rem] text-center tabular-nums text-xs sm:text-sm">
                 {Math.round(zoomLevel * 100)}%
               </span>
               <button
                 type="button"
                 onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
-                className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
+                className="h-8 w-8 sm:h-8 sm:w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100 touch-manipulation flex items-center justify-center"
               >
                 +
               </button>
               <button
                 type="button"
                 onClick={() => setZoomLevel(1)}
-                className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                className="rounded-full border border-slate-200 px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-semibold text-slate-600 hover:bg-slate-100 touch-manipulation"
               >
                 Reset
               </button>
-              <span className="hidden text-xs text-slate-500 md:inline">
-                Scroll to pan while zoomed
-              </span>
             </div>
           </div>
           {loading && (

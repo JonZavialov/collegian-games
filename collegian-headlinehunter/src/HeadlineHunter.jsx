@@ -296,30 +296,30 @@ export default function HeadlineHunter() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-slate-900">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
                 How to play Headline Hunter
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-xs sm:text-sm text-slate-600">
                 Match the zoomed-in photo to the correct headline.
               </p>
             </div>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+              className="rounded-full border border-slate-200 bg-white p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
               aria-label="Close tutorial"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <div className="mt-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+          <div className="mt-4 sm:mt-5">
+            <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
               Core gameplay
             </div>
             <ol className="mt-3 space-y-3 text-sm text-slate-700">
@@ -344,20 +344,20 @@ export default function HeadlineHunter() {
             </ol>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+          <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100 pt-4">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <input
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(event) => setDontShowAgain(event.target.checked)}
-                className="h-4 w-4 accent-blue-600"
+                className="h-5 w-5 sm:h-4 sm:w-4 accent-blue-600"
               />
               Don't show again
             </label>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+              className="w-full sm:w-auto rounded-xl bg-blue-600 px-5 py-3 sm:py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 touch-manipulation"
             >
               Start
             </button>
@@ -377,42 +377,45 @@ export default function HeadlineHunter() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-100 p-3 sm:p-4 font-sans text-slate-900">
       {tutorialModal}
-      <div className="max-w-2xl mx-auto mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
-            Headline Hunter
-          </h1>
-          <p className="text-slate-500 text-sm">
-            Can you identify the story from the detail?
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Today: {formattedDate}
-            </span>
-            <span className="rounded-full bg-slate-200/70 px-3 py-1">
-              Rounds left: {roundsLeft} / {DAILY_LIMIT}
-            </span>
+      <div className="max-w-2xl mx-auto mb-4 sm:mb-6">
+        {/* Mobile-first header layout */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-slate-900">
+              Headline Hunter
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              Can you identify the story from the detail?
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5 sm:gap-2 text-[10px] sm:text-xs font-semibold text-slate-500">
+              <span className="rounded-full bg-slate-200/70 px-2.5 py-1 sm:px-3">
+                Today: {formattedDate}
+              </span>
+              <span className="rounded-full bg-slate-200/70 px-2.5 py-1 sm:px-3">
+                Rounds left: {roundsLeft} / {DAILY_LIMIT}
+              </span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openTutorial}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
-          >
-            <Info size={16} /> How to play
-          </button>
-          <button
-            type="button"
-            onClick={() => analytics.logFeedback()}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
-          >
-            Feedback
-          </button>
-          <div className="bg-white px-4 py-2 rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-2">
-            <Trophy size={18} /> {score}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={openTutorial}
+              className="bg-white px-3 py-2 min-h-[44px] rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-1.5 sm:gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs sm:text-sm touch-manipulation"
+            >
+              <Info size={14} className="sm:w-4 sm:h-4" /> <span className="hidden sm:inline">How to play</span><span className="sm:hidden">Help</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => analytics.logFeedback()}
+              className="bg-white px-3 py-2 min-h-[44px] rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-xs sm:text-sm touch-manipulation"
+            >
+              Feedback
+            </button>
+            <div className="bg-white px-3 sm:px-4 py-2 min-h-[44px] rounded-full shadow-sm font-bold text-blue-700 border border-blue-100 flex items-center gap-1.5 sm:gap-2">
+              <Trophy size={16} className="sm:w-[18px] sm:h-[18px]" /> {score}
+            </div>
           </div>
         </div>
       </div>
@@ -457,26 +460,26 @@ export default function HeadlineHunter() {
             </div>
 
             {gameState === "won" ? (
-              <div className="bg-green-50 border border-green-200 p-6 rounded-xl text-center animate-in zoom-in duration-300">
-                <h2 className="text-2xl font-black text-green-700 mb-2">
+              <div className="bg-green-50 border border-green-200 p-4 sm:p-6 rounded-xl text-center animate-in zoom-in duration-300">
+                <h2 className="text-xl sm:text-2xl font-black text-green-700 mb-2">
                   Great Eye!
                 </h2>
-                <p className="text-green-800 mb-6 font-medium leading-tight">
+                <p className="text-green-800 mb-4 sm:mb-6 font-medium leading-tight text-sm sm:text-base">
                   "{round.correct.headline}"
                 </p>
-                <div className="flex gap-3 justify-center flex-wrap">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <a
                     href={round.correct.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="px-6 py-3 bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center gap-2"
+                    className="px-5 sm:px-6 py-3 min-h-[48px] bg-white border border-green-200 text-green-700 rounded-lg font-bold hover:bg-green-100 transition flex items-center justify-center gap-2 touch-manipulation"
                   >
                     Read Story <ExternalLink size={16} />
                   </a>
                   {roundsLeft > 0 ? (
                     <button
                       onClick={() => setupRound()}
-                      className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
+                      className="px-5 sm:px-6 py-3 min-h-[48px] bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center justify-center gap-2 touch-manipulation"
                     >
                       Next Round <ArrowRight size={16} />
                     </button>
@@ -492,16 +495,16 @@ export default function HeadlineHunter() {
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:gap-3">
                 {round?.options.map(
                   (option) =>
                     !wrongGuesses.includes(option.id) && (
                       <button
                         key={option.id}
                         onClick={() => handleGuess(option.id)}
-                        className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all text-left group"
+                        className="bg-white p-3 sm:p-4 min-h-[60px] rounded-xl shadow-sm border border-slate-200 hover:border-blue-400 active:border-blue-500 active:bg-blue-50 hover:shadow-md transition-all text-left group touch-manipulation"
                       >
-                        <span className="font-bold text-slate-700 group-hover:text-blue-700 text-lg leading-tight block">
+                        <span className="font-bold text-slate-700 group-hover:text-blue-700 text-base sm:text-lg leading-tight block">
                           {option.headline}
                         </span>
                       </button>

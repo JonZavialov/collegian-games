@@ -176,15 +176,15 @@ export default function BeatTheEditor() {
   };
 
   const tutorialModal = showTutorial ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-4">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="p-6">
-          <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-xl font-black text-slate-900">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900">
                 How to play Beat The Editor
               </h2>
-              <p className="mt-1 text-sm text-slate-600">
+              <p className="mt-1 text-xs sm:text-sm text-slate-600">
                 Answer weekly news questions, then see if you outscore the
                 editor.
               </p>
@@ -192,15 +192,15 @@ export default function BeatTheEditor() {
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-full border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+              className="rounded-full border border-slate-200 bg-white p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-500 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
               aria-label="Close tutorial"
             >
-              <X size={16} />
+              <X size={18} />
             </button>
           </div>
 
-          <div className="mt-5">
-            <div className="text-xs font-black uppercase tracking-widest text-slate-400">
+          <div className="mt-4 sm:mt-5">
+            <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400">
               Core gameplay
             </div>
             <ol className="mt-3 space-y-3 text-sm text-slate-700">
@@ -229,20 +229,20 @@ export default function BeatTheEditor() {
             </p>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
+          <div className="mt-5 sm:mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-t border-slate-100 pt-4">
             <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
               <input
                 type="checkbox"
                 checked={dontShowAgain}
                 onChange={(event) => setDontShowAgain(event.target.checked)}
-                className="h-4 w-4 accent-blue-600"
+                className="h-5 w-5 sm:h-4 sm:w-4 accent-blue-600"
               />
               Don&apos;t show again
             </label>
             <button
               type="button"
               onClick={closeTutorial}
-              className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700"
+              className="w-full sm:w-auto rounded-xl bg-blue-600 px-5 py-3 sm:py-2.5 text-sm font-black text-white shadow-lg shadow-blue-200 transition hover:bg-blue-700 touch-manipulation"
             >
               Let&apos;s play
             </button>
@@ -256,9 +256,9 @@ export default function BeatTheEditor() {
     <button
       type="button"
       onClick={openTutorial}
-      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+      className="flex items-center gap-1.5 sm:gap-2 rounded-full border border-slate-200 bg-white px-2.5 sm:px-3 py-2 min-h-[40px] text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
     >
-      <Info size={14} /> How to play
+      <Info size={14} /> <span className="hidden sm:inline">How to play</span><span className="sm:hidden">Help</span>
     </button>
   );
 
@@ -266,7 +266,7 @@ export default function BeatTheEditor() {
     <button
       type="button"
       onClick={() => analytics.logFeedback()}
-      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
+      className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 sm:px-3 py-2 min-h-[40px] text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700 touch-manipulation"
     >
       Feedback
     </button>
@@ -460,33 +460,33 @@ export default function BeatTheEditor() {
   if (gameState === "intro") {
     return (
       <>
-        <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-6 text-center rounded-xl font-sans relative">
+        <div className="flex flex-col items-center justify-center min-h-[400px] bg-slate-50 p-4 sm:p-6 text-center rounded-xl font-sans relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4 flex gap-2">
+          <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex gap-1.5 sm:gap-2">
             {tutorialButton}
             {feedbackButton}
           </div>
           {streak > 0 && (
-            <div className="mb-4 flex items-center gap-1 text-orange-500 font-bold bg-orange-100 px-3 py-1 rounded-full text-xs uppercase tracking-wide">
+            <div className="mb-3 sm:mb-4 flex items-center gap-1 text-orange-500 font-bold bg-orange-100 px-3 py-1 rounded-full text-xs uppercase tracking-wide">
               <Flame size={14} /> {streak} Game Streak
             </div>
           )}
-          <h1 className="text-3xl font-black text-slate-800 mb-2 uppercase tracking-tighter">
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-800 mb-2 uppercase tracking-tighter mt-8 sm:mt-0">
             Beat The Editor
           </h1>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 w-full max-w-sm mb-8 mt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex flex-col items-center">
-                <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xl mb-2 shadow-lg ring-4 ring-blue-100">
+          <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 w-full max-w-sm mb-6 sm:mb-8 mt-3 sm:mt-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-col items-center flex-1">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-lg sm:text-xl mb-2 shadow-lg ring-4 ring-blue-100">
                   YOU
                 </div>
               </div>
-              <div className="text-3xl font-black text-slate-300 italic">
+              <div className="text-2xl sm:text-3xl font-black text-slate-300 italic px-2">
                 VS
               </div>
-              <div className="flex flex-col items-center">
-                <div className="w-14 h-14 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-lg mb-2 shadow-lg overflow-hidden">
+              <div className="flex flex-col items-center flex-1">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-800 rounded-full flex items-center justify-center text-white font-bold text-base sm:text-lg mb-2 shadow-lg overflow-hidden">
                   {quizData.editorImageUrl ? (
                     <img
                       src={quizData.editorImageUrl}
@@ -497,14 +497,14 @@ export default function BeatTheEditor() {
                     "ED"
                   )}
                 </div>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-widest">
                   {quizData.editorName}
                 </span>
-                <span className="text-sm font-bold text-slate-800 bg-slate-200 px-2 rounded mt-1">
+                <span className="text-xs sm:text-sm font-bold text-slate-800 bg-slate-200 px-2 rounded mt-1">
                   Score to Beat: {effectiveEditorScore}
                 </span>
                 {quizData.editorBlurb && (
-                  <p className="text-xs text-slate-500 mt-2 leading-snug max-w-[180px]">
+                  <p className="text-[10px] sm:text-xs text-slate-500 mt-2 leading-snug max-w-[140px] sm:max-w-[180px]">
                     {quizData.editorBlurb}
                   </p>
                 )}
@@ -526,7 +526,7 @@ export default function BeatTheEditor() {
               );
               setGameState("playing");
             }}
-            className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl shadow-blue-200 shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+            className="w-full max-w-xs bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 min-h-[56px] rounded-xl shadow-blue-200 shadow-xl transition-all transform hover:scale-105 active:scale-100 flex items-center justify-center gap-2 touch-manipulation"
           >
             Start Quiz <ArrowRight size={20} />
           </button>
@@ -546,39 +546,39 @@ export default function BeatTheEditor() {
 
     return (
       <>
-        <div className="min-h-[400px] bg-white p-6 rounded-xl max-w-md mx-auto relative">
+        <div className="min-h-[400px] bg-white p-4 sm:p-6 rounded-xl max-w-md mx-auto relative">
           {tutorialModal}
-          <div className="absolute top-4 right-4 flex gap-2">
+          <div className="absolute top-3 sm:top-4 right-3 sm:right-4 flex gap-1.5 sm:gap-2">
             {tutorialButton}
             {feedbackButton}
           </div>
-          <div className="absolute top-0 left-0 h-1.5 bg-slate-100 w-full">
+          <div className="absolute top-0 left-0 h-1 sm:h-1.5 bg-slate-100 w-full">
             <div
               className="h-full bg-blue-600 transition-all duration-300"
               style={{ width: `${progress}%` }}
             ></div>
           </div>
 
-          <div className="mt-4 mb-6">
-            <span className="text-xs font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">
+          <div className="mt-6 sm:mt-4 mb-4 sm:mb-6">
+            <span className="text-[10px] sm:text-xs font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">
               Question {currentQ + 1}
             </span>
-            <h2 className="text-xl font-bold text-slate-900 mt-3 leading-snug">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-900 mt-2 sm:mt-3 leading-snug">
               {question.text}
             </h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {question.options.map((opt, idx) => {
               let btnClass =
-                "w-full text-left p-4 rounded-xl border-2 font-bold transition-all transform duration-200 ";
+                "w-full text-left p-3 sm:p-4 min-h-[52px] rounded-xl border-2 font-bold transition-all transform duration-200 touch-manipulation text-sm sm:text-base ";
               if (selectedOption === null) {
                 btnClass +=
-                  "border-slate-100 bg-white text-slate-600 hover:border-blue-400 hover:bg-blue-50";
+                  "border-slate-100 bg-white text-slate-600 hover:border-blue-400 active:border-blue-500 hover:bg-blue-50 active:bg-blue-100";
               } else if (idx === selectedOption) {
                 if (answerStatus === "correct")
                   btnClass +=
-                    "border-green-500 bg-green-500 text-white scale-105 shadow-lg";
+                    "border-green-500 bg-green-500 text-white scale-[1.02] sm:scale-105 shadow-lg";
                 else
                   btnClass +=
                     "border-red-500 bg-red-500 text-white shake-animation";
@@ -604,15 +604,15 @@ export default function BeatTheEditor() {
 
           {/* NEW: WRONG ANSWER FEEDBACK CARD */}
           {showFeedback && (
-            <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="bg-red-50 border border-red-100 p-4 rounded-xl mb-4">
-                <div className="flex items-start gap-3">
-                  <XCircle className="text-red-500 shrink-0 mt-0.5" size={20} />
+            <div className="mt-4 sm:mt-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="bg-red-50 border border-red-100 p-3 sm:p-4 rounded-xl mb-3 sm:mb-4">
+                <div className="flex items-start gap-2 sm:gap-3">
+                  <XCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
                   <div>
                     <p className="text-sm font-bold text-red-800 mb-1">
                       Missed it!
                     </p>
-                    <p className="text-sm text-slate-600 mb-3 italic">
+                    <p className="text-xs sm:text-sm text-slate-600 mb-3 italic">
                       "{question.blurb}"
                     </p>
 
@@ -631,7 +631,7 @@ export default function BeatTheEditor() {
 	                          currentQ + 1,
 	                        )
 	                      }
-                      className="inline-flex items-center text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-3 py-2 rounded shadow-sm"
+                      className="inline-flex items-center text-[10px] sm:text-xs font-black text-blue-600 uppercase tracking-wide hover:underline bg-white border border-blue-100 px-2.5 sm:px-3 py-2 rounded shadow-sm touch-manipulation min-h-[40px]"
                     >
                       Read: {question.articleTitle}
                       <ExternalLink size={12} className="ml-1" />
@@ -642,7 +642,7 @@ export default function BeatTheEditor() {
 
               <button
                 onClick={() => advanceGame(score)}
-                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all"
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 min-h-[52px] rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all touch-manipulation"
               >
                 Next Question <ArrowRight size={18} />
               </button>
@@ -660,27 +660,27 @@ export default function BeatTheEditor() {
 
     return (
       <>
-        <div className="bg-slate-50 p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
+        <div className="bg-slate-50 p-4 sm:p-6 rounded-xl max-w-md mx-auto relative overflow-hidden">
           {tutorialModal}
-          <div className="absolute top-4 right-4 z-10">{tutorialButton}</div>
+          <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-10">{tutorialButton}</div>
           {showConfetti && (
             <Confetti
               width={window.innerWidth}
               height={window.innerHeight}
               recycle={false}
-              numberOfPieces={500}
+              numberOfPieces={300}
             />
           )}
 
-          <div className="text-center mb-8 mt-4">
-            <h2 className="text-4xl font-black text-slate-900 mb-2 italic">
+          <div className="text-center mb-6 sm:mb-8 mt-6 sm:mt-4">
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 mb-2 italic">
 	              {userWon
 	                ? "VICTORY!"
 	                : score === effectiveEditorScore
 	                  ? "DRAW!"
 	                  : "DEFEAT!"}
             </h2>
-            <p className="text-slate-600 text-lg">
+            <p className="text-slate-600 text-base sm:text-lg">
               You: <span className="font-bold text-blue-600">{score}</span> —
               Editor:{" "}
 	              <span className="font-bold text-slate-800">
@@ -690,7 +690,7 @@ export default function BeatTheEditor() {
 
             <button
               onClick={shareResults}
-              className="mt-6 bg-slate-900 text-white text-sm font-bold py-3 px-6 rounded-full flex items-center justify-center gap-2 mx-auto hover:bg-black transition-all"
+              className="mt-5 sm:mt-6 bg-slate-900 text-white text-sm font-bold py-3 px-6 min-h-[48px] rounded-full flex items-center justify-center gap-2 mx-auto hover:bg-black transition-all touch-manipulation"
             >
               <Share2 size={16} /> Share Result
             </button>

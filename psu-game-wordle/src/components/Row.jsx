@@ -9,11 +9,36 @@ export default function Row({
   tileFontSize,
 }) {
   const [isShaking, setIsShaking] = useState(false)
+
+  // Responsive tile sizing - smaller on mobile for longer words
+  const responsiveTileSize = useMemo(() => {
+    if (typeof window === 'undefined') return tileSize
+    const isMobile = window.innerWidth < 400
+    if (isMobile) {
+      // On very small screens, reduce tile size more aggressively
+      if (wordLength >= 7) return Math.min(tileSize, 36)
+      if (wordLength >= 6) return Math.min(tileSize, 40)
+      return Math.min(tileSize, 48)
+    }
+    return tileSize
+  }, [tileSize, wordLength])
+
+  const responsiveFontSize = useMemo(() => {
+    if (typeof window === 'undefined') return tileFontSize
+    const isMobile = window.innerWidth < 400
+    if (isMobile) {
+      if (wordLength >= 7) return Math.min(tileFontSize, 16)
+      if (wordLength >= 6) return Math.min(tileFontSize, 18)
+      return Math.min(tileFontSize, 22)
+    }
+    return tileFontSize
+  }, [tileFontSize, wordLength])
+
   const tileStyle = useMemo(() => ({
-    width: tileSize,
-    height: tileSize,
-    fontSize: tileFontSize,
-  }), [tileSize, tileFontSize])
+    width: responsiveTileSize,
+    height: responsiveTileSize,
+    fontSize: responsiveFontSize,
+  }), [responsiveTileSize, responsiveFontSize])
 
   useEffect(() => {
     if (!shake) return undefined

@@ -17,9 +17,9 @@ const KEY_COLORS = {
 
 export default function Keyboard({ onKey, usedKeys = {} }) {
   return (
-    <div className="mt-6 w-full max-w-xl select-none">
+    <div className="mt-4 sm:mt-6 w-full max-w-xl select-none px-1">
       {ROWS.map((row, rowIndex) => (
-        <div key={rowIndex} className="flex justify-center gap-1.5 mb-1.5">
+        <div key={rowIndex} className="flex justify-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
           {row.map((key) => {
             const isActionKey = key === 'ENTER' || key === 'BACKSPACE'
             const label = KEY_LABELS[key] ?? key
@@ -39,9 +39,9 @@ export default function Keyboard({ onKey, usedKeys = {} }) {
                   }
                   onKey(key)
                 }}
-                className={`h-12 sm:h-14 rounded font-semibold tracking-wide uppercase ${
-                  isActionKey ? 'px-2.5 sm:px-4 text-xs sm:text-sm' : 'px-2 sm:px-3 text-sm sm:text-base'
-                } ${KEY_COLORS[keyColor] ?? 'bg-gray-300 text-gray-900'} active:scale-95 transition`}
+                className={`min-h-[44px] h-12 sm:h-14 rounded-md font-bold tracking-wide uppercase touch-manipulation ${
+                  isActionKey ? 'flex-[1.5] min-w-[52px] text-xs sm:text-sm' : 'flex-1 min-w-[28px] text-sm sm:text-base'
+                } ${KEY_COLORS[keyColor] ?? 'bg-gray-300 text-gray-900'} active:scale-95 active:brightness-90 transition-all shadow-sm`}
                 aria-label={key}
               >
                 {label}
