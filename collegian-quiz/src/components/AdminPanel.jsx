@@ -451,6 +451,17 @@ export default function AdminPanel({
                 />
               </label>
               <label className="text-sm font-semibold text-slate-600">
+                Author name
+                <input
+                  value={draftData.authorName}
+                  onChange={(event) =>
+                    updateField("authorName", event.target.value)
+                  }
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="Quiz author's name"
+                />
+              </label>
+              <label className="text-sm font-semibold text-slate-600 md:col-span-2">
                 Editor blurb
                 <textarea
                   value={draftData.editorBlurb}
