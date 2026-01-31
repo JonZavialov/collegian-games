@@ -380,9 +380,9 @@ export default function HeadlineHunter() {
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
       {tutorialModal}
-      <div className="max-w-2xl mx-auto mb-6 flex justify-between items-center">
+      <div className="max-w-2xl mx-auto mb-6 flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
+          <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tighter text-slate-900">
             Headline Hunter
           </h1>
           <p className="text-slate-500 text-sm">
@@ -397,18 +397,18 @@ export default function HeadlineHunter() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             type="button"
             onClick={openTutorial}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-sm"
           >
-            <Info size={16} /> How to play
+            <Info size={16} /> <span className="hidden sm:inline">How to play</span>
           </button>
           <button
             type="button"
             onClick={() => analytics.logFeedback()}
-            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition"
+            className="bg-white px-3 py-2 rounded-full shadow-sm font-bold text-slate-600 border border-slate-200 flex items-center gap-2 hover:border-blue-200 hover:text-blue-700 transition text-sm"
           >
             Feedback
           </button>
