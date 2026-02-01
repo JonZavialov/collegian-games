@@ -1,96 +1,72 @@
-# 🕰️ Time Machine: The Daily Collegian Archives Game
+# Time Machine
 
-**Time Machine** is an interactive history puzzle game built for the Daily Collegian at Penn State.
+Time Machine is a daily archive puzzle for **The Daily Collegian**. Players are shown a historical newspaper issue with the year redacted and must guess the year based on visual clues and headlines. Wrong guesses reveal the next page of the same issue, providing more context.
 
-**The Premise:** Users are shown a random historical issue of the newspaper (ranging from 1940–2010). The catch? The date is surgically redacted. Users must analyze the headlines, advertisements, and fashion to guess the year.
+## How the game works
 
-**The Mechanic:** If you guess wrong, the game automatically loads the **next page** of that specific issue, giving you new clues (movie times, car prices, etc.) until you either solve it or run out of pages.
+### Data flow
 
----
+1. **Archive proxy**: Requests for PDFs are routed through Netlify redirects (`/archive/*`) to avoid CORS issues with the PSU archive.
+2. **Daily date selection**: A seeded RNG (based on `YYYY-MM-DD`) chooses a single date each day to ensure every player sees the same issue.
+3. **PDF rendering + redaction**:
+   - `react-pdf` loads the issue page.
+   - The text layer is scanned for the year string and a redaction overlay is positioned on top of the matching coordinates.
 
-## 🚀 Features
+### Game loop
 
-- **Fully Automated Content:** No manual curation required. The game programmatically fetches random issues from the [Pennsylvania Newspaper Archive](https://panewsarchive.psu.edu/).
-- **Smart Redaction Engine:** Uses `react-pdf` to scan the text layer of the PDF, locate the year (e.g., "1984"), and overlay a black `div` on the exact coordinates—preventing spoilers without altering the original file.
-- **Self-Healing 404 Logic:** Since not every date has a published paper, the app invisibly retries new dates in the background if it hits a 404 error, ensuring a seamless user experience.
-- **Interactive Slider:** Users guess within a 5-year range (±2 years margin of error).
-- **Archive Integration:** Includes a "View Full Issue" link at the end of the game to drive traffic back to the actual archives.
-- **Analytics:** Integrated with PostHog to track game starts, win rates, and user engagement.
+- **Daily limit**: 1 puzzle per day (stored in `localStorage` under `time-machine_daily_progress`).
+- **Guessing**: Players input a year; the game allows a ±2-year margin for a correct answer.
+- **Page advancement**: Incorrect guesses move to the next page (up to `MAX_PAGE_PROBE`).
+- **End state**: Winning reveals a “View full issue” link; losing shows the answer and the daily countdown.
 
----
+## Key files
 
-## 🛠️ Tech Stack
+| File | Responsibility |
+| --- | --- |
+| `src/TimeMachine.jsx` | Core gameplay, PDF rendering, redaction overlay, daily state. |
+| `src/main.jsx` | React entry point + PostHog provider. |
+| `src/components/EmailSignup.jsx` | Newsletter signup UI backed by Netlify functions. |
+| `src/components/DisclaimerFooter.jsx` | Accessibility + credit footer. |
+| `src/hooks/useGameAnalytics.js` | PostHog event helpers. |
+| `netlify.toml` | Archive proxy redirect and SPA fallback. |
 
-- **Framework:** React 19 + Vite
-- **Styling:** Tailwind CSS
-- **PDF Engine:** `react-pdf` (powered by `pdfjs-dist`)
-- **Icons:** Lucide React
-- **Analytics:** PostHog
-- **Proxy:** Uses a CORS proxy to fetch PDFs from the PSU archive.
+## Configuration
 
----
+Top-of-file constants in `src/TimeMachine.jsx` control the game:
 
-## 📦 Installation & Setup
+- `START_YEAR` / `END_YEAR` — search bounds for archive dates.
+- `COLLEGIAN_LCCN` — archive identifier for The Daily Collegian.
+- `MAX_PAGE_PROBE` — max pages a player can reach before losing.
+- `DAILY_LIMIT` — daily puzzle count (set to `1`).
 
-1.  **Clone the repository:**
+## Analytics
 
-    ```bash
-    git clone [https://github.com/your-username/time-machine-game.git](https://github.com/your-username/time-machine-game.git)
-    cd time-machine-game
-    ```
+`useGameAnalytics` sends:
 
-2.  **Install dependencies:**
+- `game_start` when a new puzzle begins
+- `game_progress` for guesses
+- `game_won` on correct answers
+- `game_lost` when page attempts are exhausted
+- `content_clicked` when a player opens the full issue link
 
-    ```bash
-    npm install
-    ```
+## Environment variables
 
-3.  **Run the development server:**
+The client expects PostHog credentials in `.env`:
 
-    ```bash
-    npm run dev
-    ```
-
-4.  **Build for production:**
-    ```bash
-    npm run build
-    ```
-
----
-
-## ⚙️ Configuration
-
-You can tweak the game rules by editing the constants at the top of `src/TimeMachine.jsx`:
-
-```javascript
-// The range of years to pick from
-const START_YEAR = 1940;
-const END_YEAR = 2010;
-
-// The Newspaper ID (sn85054904 is The Daily Collegian)
-const COLLEGIAN_LCCN = "sn85054904";
-
-// Archive endpoint (handled by Netlify redirects or Vite proxy)
-const ARCHIVE_BASE_PATH = "/archive";
+```
+VITE_PUBLIC_POSTHOG_KEY
+VITE_PUBLIC_POSTHOG_HOST
 ```
 
----
+## Local development
 
-## 📊 Analytics Events (PostHog)
+```bash
+npm install
+npm run dev
+```
 
-The game tracks the following events to help measure engagement:
+Build:
 
-| Event Name           | Description                                                                        |
-| -------------------- | ---------------------------------------------------------------------------------- |
-| `tm_game_start`      | Triggered when a new round begins.                                                 |
-| `tm_guess`           | Triggered on every guess. Tracks `guessed_year`, `target_year`, and `page_number`. |
-| `tm_game_won`        | Triggered when the user guesses correctly. Tracks streak count.                    |
-| `tm_game_lost`       | Triggered when the user runs out of pages.                                         |
-| `tm_view_full_issue` | Triggered when users click the external link to read the unredacted paper.         |
-
----
-
-## ⚖️ Credits & License
-
-- **Content:** All newspaper archives are sourced from the [Pennsylvania Newspaper Archive](https://panewsarchive.psu.edu/), hosted by Penn State University Libraries.
-- **License:** [MIT](https://www.google.com/search?q=LICENSE)
+```bash
+npm run build
+```
