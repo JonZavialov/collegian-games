@@ -469,15 +469,17 @@ export default function TimeMachine() {
 
       setTimeout(() => setShake(false), 500);
 
+      // Use longer delay on mobile to allow memory cleanup between page loads
+      const transitionDelay = isMobile ? 1200 : 700;
       setTimeout(() => {
-        debugLog("setTimeout fired - incrementing page", { newPage: pageNumber + 1 });
+        debugLog("setTimeout fired - incrementing page", { newPage: pageNumber + 1, delay: transitionDelay });
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
         // Reset the processing lock after state updates are queued
         // The loading state will keep the button disabled until PDF loads
         isProcessingGuessRef.current = false;
-      }, 700);
+      }, transitionDelay);
     }
   };
 
@@ -679,14 +681,23 @@ export default function TimeMachine() {
       return;
     }
 
+    // Track which page this effect is for
+    const effectPageNumber = pageNumber;
+
     const controller = new AbortController();
     const fetchPdf = async () => {
-      debugLog("fetchPdf started", { pageNumber });
+      debugLog("fetchPdf started", { pageNumber: effectPageNumber });
 
-      if (prefetchedPdfUrlsRef.current.has(pageNumber)) {
+      // Check if page already changed before we even start
+      if (effectPageNumber !== pageNumberRef.current) {
+        debugLog("Page already changed, skipping fetch", { was: effectPageNumber, now: pageNumberRef.current });
+        return;
+      }
+
+      if (prefetchedPdfUrlsRef.current.has(effectPageNumber)) {
         debugLog("Using prefetched PDF");
-        const cachedUrl = prefetchedPdfUrlsRef.current.get(pageNumber);
-        prefetchedPdfUrlsRef.current.delete(pageNumber);
+        const cachedUrl = prefetchedPdfUrlsRef.current.get(effectPageNumber);
+        prefetchedPdfUrlsRef.current.delete(effectPageNumber);
         if (pdfObjectUrlRef.current) {
           URL.revokeObjectURL(pdfObjectUrlRef.current);
         }
@@ -710,6 +721,12 @@ export default function TimeMachine() {
         debugLog("Fetching PDF from network", { pdfUrl });
         const response = await fetch(pdfUrl, { signal: controller.signal });
 
+        // Check again after fetch completes - if page changed, don't process
+        if (effectPageNumber !== pageNumberRef.current) {
+          debugLog("Page changed during fetch, discarding response", { was: effectPageNumber, now: pageNumberRef.current });
+          return;
+        }
+
         if (response.status === 403 || response.status === 429) {
           setArchiveError(
             "The Archives are currently experiencing high traffic. Please try again later.",
@@ -728,12 +745,22 @@ export default function TimeMachine() {
         }
 
         const blob = await response.blob();
+
+        // Final check before creating object URL - this is the expensive part
+        if (effectPageNumber !== pageNumberRef.current) {
+          debugLog("Page changed during blob read, discarding", { was: effectPageNumber, now: pageNumberRef.current });
+          return;
+        }
+
+        debugLog("Creating object URL for page", { pageNumber: effectPageNumber });
         const objectUrl = URL.createObjectURL(blob);
         pdfObjectUrlRef.current = objectUrl;
         setPdfSource(objectUrl);
         setLoading(false);
+        debugLog("PDF loaded successfully", { pageNumber: effectPageNumber });
       } catch (error) {
         if (controller.signal.aborted) {
+          debugLog("Fetch aborted (expected)", { pageNumber: effectPageNumber });
           return;
         }
         console.error("Failed to fetch PDF:", error);
