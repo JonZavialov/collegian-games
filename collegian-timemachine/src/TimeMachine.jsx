@@ -106,11 +106,11 @@ export default function TimeMachine() {
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isMobile, setIsMobile] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [closestGuessDiff, setClosestGuessDiff] = useState(null);
-  const [isReplaying, setIsReplaying] = useState(false);
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
       return { dateKey: getTodayKey(), roundsCompleted: 0 };
@@ -136,6 +136,7 @@ export default function TimeMachine() {
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const roundCompletedRef = useRef(false);
+  const isReplayingRef = useRef(false);
   const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
   const pdfWrapperRef = useRef(null);
@@ -210,12 +211,11 @@ export default function TimeMachine() {
   };
 
   const startReplay = useCallback(() => {
-    setIsReplaying(true);
+    isReplayingRef.current = true;
     setScore(0);
     setCurrentRoundNumber(1);
     roundCompletedRef.current = false;
     analytics.logAction("replay_started", {}, 1);
-    // Trigger the game to start again
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
@@ -238,7 +238,9 @@ export default function TimeMachine() {
 
     const updatePdfWidth = () => {
       const containerWidth = pdfWrapperRef.current?.clientWidth ?? 0;
-      const nextWidth = Math.max(containerWidth - 32, 320);
+      // Cap mobile viewport width to reduce memory usage
+      const maxWidth = isMobile ? Math.min(containerWidth - 32, 500) : containerWidth - 32;
+      const nextWidth = Math.max(maxWidth, 320);
       setPdfViewportWidth(nextWidth);
     };
 
@@ -249,7 +251,7 @@ export default function TimeMachine() {
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [isMobile]);
 
   const startNewGame = useCallback(() => {
     const todayKey = getTodayKey();
@@ -302,7 +304,7 @@ export default function TimeMachine() {
     roundCompletedRef.current = true;
 
     // Don't update localStorage progress during replay
-    if (isReplaying) {
+    if (isReplayingRef.current) {
       return;
     }
 
@@ -320,7 +322,7 @@ export default function TimeMachine() {
     };
     setDailyProgress(updatedProgress);
     localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
-  }, [currentRoundNumber, dailyProgress, isReplaying]);
+  }, [currentRoundNumber, dailyProgress]);
 
   const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
@@ -418,10 +420,22 @@ export default function TimeMachine() {
 
       setTimeout(() => setShake(false), 500);
 
+      // On mobile, explicitly clear the PDF to release canvas memory before loading next page
+      // This prevents Safari from crashing due to memory pressure from overlapping PDF renders
+      if (isMobile) {
+        setIsTransitioning(true);
+        setPdfSource(null);
+        if (pdfObjectUrlRef.current) {
+          URL.revokeObjectURL(pdfObjectUrlRef.current);
+          pdfObjectUrlRef.current = null;
+        }
+      }
+
       setTimeout(() => {
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
+        setIsTransitioning(false);
       }, 700);
     }
   };
@@ -527,8 +541,8 @@ export default function TimeMachine() {
     const textContent = await page.getTextContent();
     const targetYearStr = targetDate.year.toString();
     const viewport = page.getViewport({ scale: 1 });
+    // Use base scale only - zoom is handled by CSS transform
     const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
-    const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
     textContent.items.forEach((item) => {
       if (item.str.includes(targetYearStr)) {
@@ -536,14 +550,14 @@ export default function TimeMachine() {
         const pdfY = item.transform[5];
         const itemHeight = item.height || 10;
         const itemWidth = item.width;
-        const x = pdfX * scaleFactor;
-        const y = (viewport.height - pdfY - itemHeight) * scaleFactor;
+        const x = pdfX * baseScale;
+        const y = (viewport.height - pdfY - itemHeight) * baseScale;
 
         boxes.push({
           x: x - 4,
           y: y - 4,
-          w: itemWidth * scaleFactor + 12,
-          h: itemHeight * scaleFactor + 8,
+          w: itemWidth * baseScale + 12,
+          h: itemHeight * baseScale + 8,
         });
       }
     });
@@ -555,8 +569,7 @@ export default function TimeMachine() {
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
     : "#";
-  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError;
-  const pageScale = zoomLevel * (isMobile ? 0.6 : 1);
+  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError && !isTransitioning && !(isMobile && feedbackMsg);
   const documentKey = `${targetDate?.full ?? "no-date"}-${pageNumber}`;
 
   // Helper for tracking external link clicks
@@ -857,17 +870,6 @@ export default function TimeMachine() {
             shake ? "border-red-400 bg-red-50" : ""
           }`}
         >
-          {isReplaying && gameState === "playing" && (
-            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
-              <p className="text-amber-800 font-semibold text-sm">
-                Replay Mode — Same issue from earlier today
-              </p>
-              <p className="text-amber-600 text-xs mt-1">
-                New issue available tomorrow at midnight
-              </p>
-            </div>
-          )}
-
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4">
               <div
@@ -931,27 +933,12 @@ export default function TimeMachine() {
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                {isReplaying ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      Replay complete! Come back tomorrow for a new issue.
-                    </div>
-                    <button
-                      onClick={() => {
-                        setIsReplaying(false);
-                        setGameState("daily-complete");
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Back to summary
-                    </button>
-                  </div>
-                ) : roundsLeft > 0 ? (
+                {roundsLeft > 0 ? (
                   <button
                     onClick={startNewGame}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
@@ -959,12 +946,17 @@ export default function TimeMachine() {
                     <RefreshCw size={18} /> Play Again
                   </button>
                 ) : (
-                  <button
-                    onClick={() => setGameState("daily-complete")}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
-                  >
-                    See Summary <ArrowRight size={18} />
-                  </button>
+                  <>
+                    <button
+                      onClick={startReplay}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                    >
+                      <RefreshCw size={18} /> Replay
+                    </button>
+                    <div className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-500">
+                      New issue in {formatCountdown(timeUntilReset)}
+                    </div>
+                  </>
                 )}
                 <EmailSignup gameName="Time Machine" />
               </div>
@@ -999,27 +991,12 @@ export default function TimeMachine() {
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                {isReplaying ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      Replay complete! Come back tomorrow for a new issue.
-                    </div>
-                    <button
-                      onClick={() => {
-                        setIsReplaying(false);
-                        setGameState("daily-complete");
-                      }}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      Back to summary
-                    </button>
-                  </div>
-                ) : roundsLeft > 0 ? (
+                {roundsLeft > 0 ? (
                   <button
                     onClick={() => {
                       setScore(0);
@@ -1030,12 +1007,17 @@ export default function TimeMachine() {
                     <RefreshCw size={18} /> Try Again
                   </button>
                 ) : (
-                  <button
-                    onClick={() => setGameState("daily-complete")}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
-                  >
-                    See Summary <ArrowRight size={18} />
-                  </button>
+                  <>
+                    <button
+                      onClick={startReplay}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                    >
+                      <RefreshCw size={18} /> Replay
+                    </button>
+                    <div className="rounded-lg bg-slate-100 px-4 py-2 text-xs font-semibold text-slate-500">
+                      New issue in {formatCountdown(timeUntilReset)}
+                    </div>
+                  </>
                 )}
                 <EmailSignup gameName="Time Machine" />
               </div>
@@ -1132,7 +1114,7 @@ export default function TimeMachine() {
               </span>
               <button
                 type="button"
-                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
+                onClick={() => setZoomLevel((prev) => Math.min(5, prev + 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 +
@@ -1161,14 +1143,14 @@ export default function TimeMachine() {
           )}
 
           {shouldRenderPdf && (
-            <div
-              className={`relative bg-white min-h-[400px] md:min-h-[800px] shadow-2xl ${
-                zoomLevel === 1
-                  ? "overflow-y-auto overflow-x-hidden"
-                  : "overflow-auto"
-              }`}
-            >
-              <div className="relative mx-auto w-fit">
+            <div className="relative bg-white min-h-[400px] md:min-h-[800px] shadow-2xl overflow-auto">
+              <div
+                className="relative mx-auto w-fit"
+                style={{
+                  transform: `scale(${zoomLevel})`,
+                  transformOrigin: "top left",
+                }}
+              >
                 <Document
                   key={documentKey}
                   file={pdfSource}
@@ -1178,7 +1160,6 @@ export default function TimeMachine() {
                 >
                   <Page
                     pageNumber={1}
-                    scale={pageScale}
                     width={pdfViewportWidth ?? undefined}
                     onLoadSuccess={onPageLoadSuccess}
                     devicePixelRatio={devicePixelRatio}
