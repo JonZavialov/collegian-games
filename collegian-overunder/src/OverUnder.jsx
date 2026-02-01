@@ -581,7 +581,7 @@ export default function OverUnder() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col sm:flex-row relative">
+        <div className="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
           {/* Left Card */}
           {leftCard && (
             <PlayerCard
@@ -593,12 +593,19 @@ export default function OverUnder() {
             />
           )}
 
-          {/* VS Badge */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-900 border-4 border-slate-600 flex items-center justify-center shadow-2xl">
-              <span className="text-xl sm:text-2xl font-black text-white">
+          {/* VS Badge - only show on desktop, hidden on mobile */}
+          <div className="hidden sm:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+            <div className="w-20 h-20 rounded-full bg-slate-900 border-4 border-slate-600 flex items-center justify-center shadow-2xl">
+              <span className="text-2xl font-black text-white">
                 VS
               </span>
+            </div>
+          </div>
+
+          {/* Mobile VS divider */}
+          <div className="sm:hidden flex items-center justify-center py-2 bg-slate-900 relative z-10">
+            <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg">
+              <span className="text-sm font-black text-white">VS</span>
             </div>
           </div>
 
@@ -612,30 +619,30 @@ export default function OverUnder() {
                 result={showResult}
                 revealed={revealedValue}
               />
+            </div>
+          )}
 
-              {/* Guess Buttons - positioned at bottom of right card */}
-              {gameState === "playing" && !showResult && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/90 to-transparent p-4 sm:p-6 z-20">
-                  <div className="flex gap-3 justify-center max-w-xs mx-auto">
-                    <button
-                      onClick={() => handleGuess("higher")}
-                      disabled={isAnimating}
-                      className="flex-1 px-6 py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition shadow-lg shadow-green-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                    >
-                      <ChevronUp size={24} strokeWidth={3} />
-                      <span>Higher</span>
-                    </button>
-                    <button
-                      onClick={() => handleGuess("lower")}
-                      disabled={isAnimating}
-                      className="flex-1 px-6 py-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                    >
-                      <ChevronDown size={24} strokeWidth={3} />
-                      <span>Lower</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+          {/* Guess Buttons - fixed at bottom on mobile, absolute on desktop */}
+          {gameState === "playing" && !showResult && (
+            <div className="sm:absolute sm:bottom-0 sm:right-0 sm:left-1/2 bg-slate-900 sm:bg-gradient-to-t sm:from-slate-900 sm:via-slate-900/90 sm:to-transparent p-4 z-20">
+              <div className="flex gap-3 justify-center max-w-xs mx-auto">
+                <button
+                  onClick={() => handleGuess("higher")}
+                  disabled={isAnimating}
+                  className="flex-1 px-6 py-3 sm:py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition shadow-lg shadow-green-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                >
+                  <ChevronUp size={24} strokeWidth={3} />
+                  <span>Higher</span>
+                </button>
+                <button
+                  onClick={() => handleGuess("lower")}
+                  disabled={isAnimating}
+                  className="flex-1 px-6 py-3 sm:py-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                >
+                  <ChevronDown size={24} strokeWidth={3} />
+                  <span>Lower</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
