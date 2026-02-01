@@ -552,7 +552,7 @@ export default function OverUnder() {
           )}
 
           {/* VS Badge */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-slate-900 border-4 border-slate-600 flex items-center justify-center shadow-2xl">
               <span className="text-xl sm:text-2xl font-black text-white">
                 VS
@@ -562,7 +562,7 @@ export default function OverUnder() {
 
           {/* Right Card */}
           {rightCard && (
-            <div className="flex-1 flex flex-col">
+            <div className="flex-1 flex flex-col relative">
               <PlayerCard
                 card={rightCard}
                 side="right"
@@ -571,10 +571,10 @@ export default function OverUnder() {
                 revealed={revealedValue}
               />
 
-              {/* Guess Buttons */}
+              {/* Guess Buttons - positioned at bottom of right card */}
               {gameState === "playing" && !showResult && (
-                <div className="absolute bottom-0 left-0 right-0 sm:left-1/2 sm:right-0 bg-gradient-to-t from-slate-900 via-slate-900/90 to-transparent p-4 sm:p-6">
-                  <div className="flex gap-3 justify-center max-w-sm mx-auto sm:ml-auto sm:mr-4">
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-900 via-slate-900/90 to-transparent p-4 sm:p-6 z-20">
+                  <div className="flex gap-3 justify-center max-w-xs mx-auto">
                     <button
                       onClick={() => handleGuess("higher")}
                       disabled={isAnimating}
