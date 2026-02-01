@@ -1,85 +1,79 @@
-# Redacted - The Daily Collegian Game
+# Redacted
 
-A viral "fill-in-the-blank" puzzle game for _The Daily Collegian_. The game fetches the latest headlines from our article database (synced from the RSS feed), smartly redacts key words, and challenges users to guess the missing context.
+Redacted is a daily headline guessing game for **The Daily Collegian**. Each round presents a recent headline with three key words hidden; players must type the missing words before they run out of lives.
 
-## 🎮 Features
+## How the game works
 
-- **Database-Backed Content:** Headlines come from our Postgres database, synced from the RSS feed to avoid 429 rate-limit errors.
-- **Context Aware:** Hides exactly 3 words per headline, keeping "stop words" (the, a, in) visible for context.
-- **Gamified:** Lives system (5 hearts), Streak counter, and Win/Loss animations.
-- **Anti-Frustration:** Includes a "Give Up / Reveal Answer" feature for difficult headlines.
-- **Mobile Optimized:** Sticky input bar, large touch targets, and responsive layout.
-- **Smart Caching:** Uses `sessionStorage` to cache database responses for 1 hour, keeping gameplay snappy.
+### Data flow
 
-## 🛠 Tech Stack
+1. **Postgres → Netlify Function**: `netlify/functions/get-articles.js` queries the `articles` table for recent headlines with images.
+2. **Netlify Function → Client**: `Redacted.jsx` fetches `/.netlify/functions/get-articles` and converts the response into playable rounds.
+3. **Daily rounds**: Articles are sorted, then shuffled using a seeded RNG keyed to the date (`YYYY-MM-DD`). The first five items become the daily lineup so all players see the same puzzles each day.
 
-- **Framework:** React 19 + Vite
-- **Styling:** Tailwind CSS
-- **Icons:** Lucide React
-- **Analytics:** PostHog (`posthog-js`)
-- **Effects:** React Confetti
+### Redaction logic
 
-## 🚀 How It Works
+- The headline is split into words.
+- A stop-word list (articles, pronouns, conjunctions, etc.) is preserved for context.
+- Three non-stop words are randomly selected and replaced with blanks.
+- Guessing fills the blanks; wrong guesses cost a life.
 
-1. **Database Sync (RSS → Postgres):** A scheduled scraper ingests the _Daily Collegian_ RSS feed into Postgres, so the app never has to hit the RSS feed directly.
-2. **App Fetch (Postgres → Netlify Function → Client):** The client requests `/.netlify/functions/get-articles`, which queries recent headlines and returns clean JSON.
-3. **Gameplay:** Headlines are redacted (three words removed while keeping stop words) and served to the player round-by-round.
+### Game loop
 
-## 🚀 Getting Started
+- **Lives**: Players start with 5 hearts.
+- **Win**: Fill all missing words to earn a point and advance.
+- **Loss**: Run out of lives or use the “Reveal” option.
+- **Daily progress**: Stored in `localStorage` under `redacted_daily_progress`.
+- **Reset timer**: A countdown shows time until the next daily reset.
 
-### 1. Installation
+## Key files
+
+| File | Responsibility |
+| --- | --- |
+| `src/Redacted.jsx` | Main gameplay loop, redaction logic, daily state. |
+| `src/main.jsx` | React entry point + PostHog provider. |
+| `src/components/EmailSignup.jsx` | Newsletter signup UI backed by Netlify functions. |
+| `src/components/DisclaimerFooter.jsx` | Accessibility + credit footer. |
+| `src/hooks/useGameAnalytics.js` | PostHog event helpers. |
+| `netlify/functions/get-articles.js` | Postgres query for recent headlines. |
+
+## Analytics
+
+The game uses `useGameAnalytics` to send:
+
+- `game_start` when a round begins
+- `game_progress` for incorrect guesses
+- `game_won` on success
+- `game_lost` on surrender or running out of lives
+- `content_clicked` when players open the linked article
+
+## Environment variables
+
+Netlify function (`get-articles.js`) requires Postgres credentials:
+
+```
+DB_HOST
+DB_NAME
+DB_USER
+DB_PASSWORD
+DB_PORT
+```
+
+The client expects PostHog credentials in `.env`:
+
+```
+VITE_PUBLIC_POSTHOG_KEY
+VITE_PUBLIC_POSTHOG_HOST
+```
+
+## Local development
 
 ```bash
 npm install
-
-```
-
-### 2. Local Development
-
-```bash
 npm run dev
-
 ```
 
-- The app will run at `http://localhost:5173`.
-- The app calls the Netlify function at `/.netlify/functions/get-articles` to load data.
-
-### 3. Build for Production
+Build:
 
 ```bash
 npm run build
-
-```
-
----
-
-## ⚙️ Data Configuration
-
-The Netlify function in `netlify/functions/get-articles.js` connects to Postgres using environment variables (`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`). Update the SQL query there if you want to change which headlines appear in-game.
-
----
-
-## 📊 Analytics Events
-
-This game uses a standardized `useGameAnalytics` hook. Key events tracked:
-
-| Event Name        | Trigger                  | Properties                        |
-| ----------------- | ------------------------ | --------------------------------- |
-| `game_start`      | Round loads              | `headline_length`                 |
-| `game_won`        | User guesses all words   | `lives_remaining`, `score`        |
-| `game_lost`       | User runs out of lives   | `score`, `method: "out_of_lives"` |
-| `game_lost`       | User clicks "Reveal"     | `score`, `method: "surrender"`    |
-| `content_clicked` | User clicks "Read Story" | `url`                             |
-
-## 📂 Project Structure
-
-```text
-src/
-├── components/
-│   └── DisclaimerFooter.jsx  # Shared footer
-├── hooks/
-│   └── useGameAnalytics.js   # PostHog wrapper
-├── Redacted.jsx              # Main game logic
-└── main.jsx
-
 ```
