@@ -356,48 +356,96 @@ useEffect(() => {
 
 ## Daily Challenge System
 
-Games with daily limits use seeded randomization for consistent puzzles across all users.
+**IMPORTANT:** All games use a daily challenge system with the following key requirements:
+
+1. **5 rounds per day** - Users get exactly 5 rounds/puzzles per day
+2. **Deterministic selection** - Everyone gets the SAME 5 rounds each day (seeded by date)
+3. **Progress persistence** - Progress is saved to localStorage and restored on page reload
+4. **Daily reset at midnight** - New rounds available at 12:00 AM local time
+5. **Countdown timer** - Show time until next reset when daily limit is reached
+
+### Why Deterministic Rounds Matter
+
+This creates a shared experience where users can discuss the same puzzles, compare scores, and creates a "daily challenge" feel similar to Wordle. The seeded randomization ensures:
+- All users see the same content each day
+- Refreshing the page doesn't change the rounds
+- The experience is consistent across devices for the same user
 
 ### Seeded Random Function
 
 ```jsx
 const createSeededRandom = (seed) => {
   let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
   return () => {
     value = (value * 16807) % 2147483647;
     return value / 2147483647;
   };
 };
 
-// Usage
-const today = new Date();
-const seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-const random = createSeededRandom(seed + roundIndex);
+const seededShuffle = (items, seed) => {
+  const random = createSeededRandom(seed);
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
 
-// Shuffle array with seeded random
-const shuffled = [...items].sort(() => random() - 0.5);
+// Generate daily rounds from date
+const getTodayKey = () => new Date().toISOString().slice(0, 10); // "2024-01-15"
+const seed = Number(getTodayKey().replace(/-/g, "")); // 20240115
+const dailyRounds = seededShuffle(allItems, seed).slice(0, DAILY_LIMIT);
 ```
 
 ### Daily Reset Pattern
 
 ```jsx
 const DAILY_LIMIT = 5;
+const DAILY_STORAGE_KEY = "gamename_daily_progress";
 
-const getTodayDateString = () => {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${now.getUTCMonth()}-${now.getUTCDate()}`;
-};
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
 
 const getTimeUntilReset = () => {
   const now = new Date();
-  const tomorrow = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate() + 1
-  ));
-  return tomorrow - now;
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+// Save progress with date check
+const saveDailyProgress = (roundIndex, score, completed) => {
+  localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify({
+    date: getTodayKey(),
+    roundIndex,
+    score,
+    completed
+  }));
+};
+
+// Load progress - only if from today
+const loadDailyProgress = () => {
+  const saved = localStorage.getItem(DAILY_STORAGE_KEY);
+  if (saved) {
+    const data = JSON.parse(saved);
+    if (data.date === getTodayKey()) return data;
+  }
+  return null;
 };
 ```
+
+### Daily Complete Screen
+
+When a user completes their daily rounds (win or lose), show:
+- Final score (e.g., "3/5")
+- Countdown to next reset
+- Email signup form
+- NO "Play Again" button (they must wait for tomorrow)
 
 ---
 
