@@ -959,13 +959,12 @@ export default function TimeMachine() {
                     <RefreshCw size={18} /> Play Again
                   </button>
                 ) : (
-                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                    You&apos;ve finished today&apos;s round. Come back in{" "}
-                    <span className="font-black text-slate-800">
-                      {formatCountdown(timeUntilReset)}
-                    </span>
-                    .
-                  </div>
+                  <button
+                    onClick={() => setGameState("daily-complete")}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                  >
+                    See Summary <ArrowRight size={18} />
+                  </button>
                 )}
                 <EmailSignup gameName="Time Machine" />
               </div>
@@ -1031,13 +1030,12 @@ export default function TimeMachine() {
                     <RefreshCw size={18} /> Try Again
                   </button>
                 ) : (
-                  <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                    That&apos;s today&apos;s Time Machine. Come back in{" "}
-                    <span className="font-black text-slate-800">
-                      {formatCountdown(timeUntilReset)}
-                    </span>
-                    .
-                  </div>
+                  <button
+                    onClick={() => setGameState("daily-complete")}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
+                  >
+                    See Summary <ArrowRight size={18} />
+                  </button>
                 )}
                 <EmailSignup gameName="Time Machine" />
               </div>
