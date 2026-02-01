@@ -650,6 +650,13 @@ export default function OverUnder() {
               <Info size={16} />
               <span className="hidden sm:inline">How to play</span>
             </button>
+            <button
+              type="button"
+              onClick={() => analytics.logFeedback()}
+              className="bg-slate-700 px-3 py-2 rounded-full shadow-sm font-bold text-slate-300 border border-slate-600 flex items-center gap-2 hover:border-blue-400 hover:text-white transition text-sm"
+            >
+              Feedback
+            </button>
             <div className="bg-slate-700 px-3 py-2 rounded-full shadow-sm font-bold text-slate-400 border border-slate-600 flex items-center gap-2 text-sm">
               Round {Math.min(roundIndex + 1, DAILY_LIMIT)}/{DAILY_LIMIT}
             </div>
