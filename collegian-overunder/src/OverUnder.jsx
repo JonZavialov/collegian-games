@@ -9,6 +9,7 @@ import {
   Info,
   User,
   Clock,
+  AlertCircle,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
@@ -27,6 +28,13 @@ const PLACEHOLDER_IMAGE =
 
 // Date utilities
 const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (dateKey) =>
+  new Date(`${dateKey}T00:00:00Z`).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
 const getTimeUntilReset = () => {
   const now = new Date();
@@ -136,7 +144,7 @@ export default function OverUnder() {
   const [season, setSeason] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [gameState, setGameState] = useState("loading"); // loading, playing, won, lost, daily-complete
+  const [gameState, setGameState] = useState("loading"); // loading, playing, daily-complete
   const [dailyRounds, setDailyRounds] = useState([]);
   const [roundIndex, setRoundIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -150,6 +158,11 @@ export default function OverUnder() {
 
   const roundCompletedRef = useRef(false);
   const analytics = useGameAnalytics("over-under", roundIndex);
+
+  // Computed values
+  const todayKey = getTodayKey();
+  const formattedDate = formatDate(todayKey);
+  const roundsLeft = Math.max(DAILY_LIMIT - roundIndex - (gameState === "playing" ? 0 : 0), 0);
 
   // Update countdown timer
   useEffect(() => {
@@ -306,20 +319,30 @@ export default function OverUnder() {
           setIsAnimating(false);
         }, 1500);
       } else {
+        // Wrong answer - show result but continue to next round
         setShowResult("wrong");
-        setGameState("lost");
-        saveDailyProgress(roundIndex, score, true);
-        analytics.logLoss({
-          final_score: score,
-          guess,
-          round: roundIndex + 1,
-          left_value: leftValue,
-          right_value: rightValue,
-        });
 
         setTimeout(() => {
+          const nextRoundIndex = roundIndex + 1;
+
+          if (nextRoundIndex >= dailyRounds.length) {
+            // Completed all rounds - daily complete!
+            setGameState("daily-complete");
+            saveDailyProgress(nextRoundIndex, score, true);
+            if (!roundCompletedRef.current) {
+              roundCompletedRef.current = true;
+              analytics.logWin({ final_score: score, rounds_completed: nextRoundIndex });
+            }
+          } else {
+            // Move to next round (score stays the same)
+            setRoundIndex(nextRoundIndex);
+            saveDailyProgress(nextRoundIndex, score, false);
+          }
+
+          setShowResult(null);
+          setRevealedValue(null);
           setIsAnimating(false);
-        }, 500);
+        }, 1500);
       }
     },
     [
@@ -409,7 +432,7 @@ export default function OverUnder() {
                   3
                 </span>
                 <span>
-                  Complete all {DAILY_LIMIT} rounds to win! One wrong guess ends the game.
+                  Get as many correct as you can across all {DAILY_LIMIT} rounds!
                 </span>
               </li>
             </ol>
@@ -458,15 +481,15 @@ export default function OverUnder() {
   if (error) {
     return (
       <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
-        <div className="bg-red-900/50 border border-red-500 rounded-xl p-6 max-w-md text-center">
-          <X className="mx-auto text-red-500 mb-4" size={48} />
-          <h2 className="text-xl font-black text-red-400 mb-2">
-            Failed to Load
+        <div className="bg-slate-800 border border-slate-700 rounded-xl p-8 max-w-md text-center shadow-lg">
+          <AlertCircle className="mx-auto text-red-500 mb-4" size={48} />
+          <h2 className="text-xl font-black text-white mb-2">
+            Unavailable
           </h2>
-          <p className="text-red-300 mb-4">{error}</p>
+          <p className="text-slate-400 mb-6">{error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-500 transition"
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-500 transition"
           >
             Retry
           </button>
@@ -554,58 +577,40 @@ export default function OverUnder() {
     );
   };
 
+  // Get completion message based on score
+  const getCompletionMessage = () => {
+    if (score === DAILY_LIMIT) {
+      return { title: "Perfect Score!", message: `You got all ${DAILY_LIMIT} correct! Amazing knowledge of Penn State football!` };
+    } else if (score >= DAILY_LIMIT - 1) {
+      return { title: "So Close!", message: `You scored ${score}/${DAILY_LIMIT} today. Great job!` };
+    } else if (score >= Math.ceil(DAILY_LIMIT / 2)) {
+      return { title: "Nice Work!", message: `You scored ${score}/${DAILY_LIMIT} today. Come back tomorrow for new matchups!` };
+    } else {
+      return { title: "Daily Complete", message: `You scored ${score}/${DAILY_LIMIT} today. Try again tomorrow!` };
+    }
+  };
+
   // Daily Complete State
+  const completionInfo = getCompletionMessage();
   const dailyCompleteScreen = (
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
         <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-blue-900/50 flex items-center justify-center">
-          <Clock className="text-blue-400" size={40} />
+          {score === DAILY_LIMIT ? (
+            <Trophy className="text-yellow-400" size={40} />
+          ) : (
+            <Clock className="text-blue-400" size={40} />
+          )}
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
-          {score === DAILY_LIMIT ? "Perfect Score!" : "Daily Complete"}
+          {completionInfo.title}
         </h2>
         <p className="text-slate-400 mb-4">
-          {score === DAILY_LIMIT
-            ? `You got all ${DAILY_LIMIT} correct! Amazing knowledge of Penn State football!`
-            : `You scored ${score}/${DAILY_LIMIT} today. Come back tomorrow for new matchups!`}
+          {completionInfo.message}
         </p>
         <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
           <p className="text-slate-400 text-sm">Your Score</p>
           <p className="text-4xl font-black text-blue-400">
-            {score}/{DAILY_LIMIT}
-          </p>
-        </div>
-        <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
-          <p className="text-slate-400 text-sm">Next challenge in</p>
-          <p className="text-2xl font-black text-white font-mono">
-            {formatCountdown(countdown)}
-          </p>
-        </div>
-        <EmailSignup gameName="Over/Under" />
-      </div>
-    </div>
-  );
-
-  // Game Over (Lost) State
-  const gameOverScreen = (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
-        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-900/50 flex items-center justify-center">
-          <X className="text-red-400" size={40} />
-        </div>
-        <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
-          Game Over!
-        </h2>
-        <p className="text-slate-400 mb-4">
-          {rightCard?.name} had{" "}
-          <span className="text-yellow-400 font-bold">
-            {revealedValue?.toLocaleString()}
-          </span>{" "}
-          {rightCard?.category}
-        </p>
-        <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
-          <p className="text-slate-400 text-sm">Final Score</p>
-          <p className="text-4xl font-black text-white">
             {score}/{DAILY_LIMIT}
           </p>
         </div>
@@ -640,6 +645,14 @@ export default function OverUnder() {
             <p className="text-slate-400 text-xs sm:text-sm">
               Penn State Football • {season ? `${season} Season` : "Loading..."}
             </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold text-slate-500">
+              <span className="rounded-full bg-slate-700/70 px-3 py-1">
+                Today: {formattedDate}
+              </span>
+              <span className="rounded-full bg-slate-700/70 px-3 py-1">
+                Round {Math.min(roundIndex + 1, DAILY_LIMIT)} / {DAILY_LIMIT}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -657,9 +670,6 @@ export default function OverUnder() {
             >
               Feedback
             </button>
-            <div className="bg-slate-700 px-3 py-2 rounded-full shadow-sm font-bold text-slate-400 border border-slate-600 flex items-center gap-2 text-sm">
-              Round {Math.min(roundIndex + 1, DAILY_LIMIT)}/{DAILY_LIMIT}
-            </div>
             <div className="bg-blue-600 px-4 py-2 rounded-full shadow-lg font-bold text-white border border-blue-500 flex items-center gap-2">
               <Trophy size={18} /> {score}
             </div>
@@ -670,8 +680,6 @@ export default function OverUnder() {
       {/* Game Area */}
       {gameState === "daily-complete" ? (
         dailyCompleteScreen
-      ) : gameState === "lost" ? (
-        gameOverScreen
       ) : (
         <div className="flex-1 flex flex-col">
           {/* Cards Container */}
