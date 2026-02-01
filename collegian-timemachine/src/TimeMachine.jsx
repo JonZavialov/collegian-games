@@ -18,6 +18,26 @@ import EmailSignup from "./components/EmailSignup";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
+// 🔴 DEBUG: Persistent logging to localStorage (survives page reloads)
+const DEBUG_KEY = "timemachine_debug_log";
+const debugLog = (message, data = null) => {
+  const timestamp = new Date().toISOString().slice(11, 23);
+  const entry = data ? `[${timestamp}] ${message}: ${JSON.stringify(data)}` : `[${timestamp}] ${message}`;
+  const existing = JSON.parse(localStorage.getItem(DEBUG_KEY) || "[]");
+  existing.push(entry);
+  // Keep last 50 entries
+  if (existing.length > 50) existing.shift();
+  localStorage.setItem(DEBUG_KEY, JSON.stringify(existing));
+  console.log(entry);
+};
+
+// Clear old logs on fresh load (not reload)
+if (!sessionStorage.getItem("debug_session_started")) {
+  localStorage.removeItem(DEBUG_KEY);
+  sessionStorage.setItem("debug_session_started", "true");
+}
+debugLog("=== PAGE LOAD ===");
+
 // ✅ PDF WORKER SETUP
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -105,7 +125,9 @@ export default function TimeMachine() {
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" && window.innerWidth < 768
+  );
   const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
@@ -136,6 +158,8 @@ export default function TimeMachine() {
   });
   const [currentRoundNumber, setCurrentRoundNumber] = useState(1);
   const roundCompletedRef = useRef(false);
+  const isProcessingGuessRef = useRef(false);
+  const pageNumberRef = useRef(1); // Track current page for async operations
   const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
   const pdfWrapperRef = useRef(null);
@@ -157,22 +181,39 @@ export default function TimeMachine() {
     0,
   );
   const formattedDate = formatDate(todayKey);
+  // Limit devicePixelRatio more aggressively on mobile to reduce memory usage
   const devicePixelRatio =
     typeof window !== "undefined"
-      ? Math.min(window.devicePixelRatio || 1, 2)
+      ? Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 2)
       : 1;
 
   useEffect(() => {
-    // Optional: Initialize PostHog here if you haven't done it in main.jsx
-    // posthog.init('YOUR_API_KEY', { api_host: 'https://app.posthog.com' });
-
     startNewGame();
     const updateWidth = () => {
       setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener("resize", updateWidth);
-    setTimeout(updateWidth, 500);
-    return () => window.removeEventListener("resize", updateWidth);
+
+    // Catch unhandled errors/rejections that might cause mobile Safari to reload
+    const handleError = (event) => {
+      console.error("Caught unhandled error:", event.error || event.reason);
+      event.preventDefault?.();
+    };
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleError);
+
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleError);
+      // Clean up object URLs on unmount
+      if (pdfObjectUrlRef.current) {
+        URL.revokeObjectURL(pdfObjectUrlRef.current);
+      }
+      prefetchedPdfUrlsRef.current.forEach((url) => {
+        URL.revokeObjectURL(url);
+      });
+    };
   }, []);
 
   useEffect(() => {
@@ -189,6 +230,11 @@ export default function TimeMachine() {
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Keep pageNumberRef in sync for async operations
+  useEffect(() => {
+    pageNumberRef.current = pageNumber;
+  }, [pageNumber]);
 
   useEffect(() => {
     const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
@@ -214,6 +260,7 @@ export default function TimeMachine() {
     setScore(0);
     setCurrentRoundNumber(1);
     roundCompletedRef.current = false;
+    isProcessingGuessRef.current = false;
     analytics.logAction("replay_started", {}, 1);
     // Trigger the game to start again
     setLoading(true);
@@ -268,6 +315,7 @@ export default function TimeMachine() {
     const nextRoundNumber = baseProgress.roundsCompleted + 1;
     setCurrentRoundNumber(nextRoundNumber);
     roundCompletedRef.current = false;
+    isProcessingGuessRef.current = false;
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
@@ -356,7 +404,8 @@ export default function TimeMachine() {
   ]);
 
   const handleSubmitGuess = () => {
-    if (!targetDate) return;
+    // Prevent spam clicking - ignore if already processing a guess
+    if (!targetDate || isProcessingGuessRef.current || loading) return;
 
     const diff = Math.abs(targetDate.year - guessYear);
     const isWin = diff <= 2;
@@ -410,7 +459,9 @@ export default function TimeMachine() {
         return;
       }
 
-      // WRONG GUESS UX
+      // WRONG GUESS UX - lock immediately to prevent spam
+      debugLog("Wrong guess - starting page transition", { from: pageNumber, to: pageNumber + 1 });
+      isProcessingGuessRef.current = true;
       setShake(true);
       setFeedbackMsg(
         `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`,
@@ -419,9 +470,13 @@ export default function TimeMachine() {
       setTimeout(() => setShake(false), 500);
 
       setTimeout(() => {
+        debugLog("setTimeout fired - incrementing page", { newPage: pageNumber + 1 });
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
+        // Reset the processing lock after state updates are queued
+        // The loading state will keep the button disabled until PDF loads
+        isProcessingGuessRef.current = false;
       }, 700);
     }
   };
@@ -435,6 +490,11 @@ export default function TimeMachine() {
   );
 
   useEffect(() => {
+    // Skip page count probing on mobile to reduce network requests and memory usage
+    if (isMobile) {
+      return;
+    }
+
     if (!targetDate || gameState !== "playing") {
       return;
     }
@@ -519,35 +579,67 @@ export default function TimeMachine() {
     return () => {
       controller.abort();
     };
-  }, [gameState, getPdfUrlForPage, targetDate]);
+  }, [gameState, getPdfUrlForPage, isMobile, targetDate]);
 
   const onPageLoadSuccess = async (page) => {
     setLoading(false);
-    const boxes = [];
-    const textContent = await page.getTextContent();
-    const targetYearStr = targetDate.year.toString();
-    const viewport = page.getViewport({ scale: 1 });
-    const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
-    const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
-    textContent.items.forEach((item) => {
-      if (item.str.includes(targetYearStr)) {
-        const pdfX = item.transform[4];
-        const pdfY = item.transform[5];
-        const itemHeight = item.height || 10;
-        const itemWidth = item.width;
-        const x = pdfX * scaleFactor;
-        const y = (viewport.height - pdfY - itemHeight) * scaleFactor;
+    // Capture current page number to detect if page changed during async operations
+    const currentPage = pageNumberRef.current;
 
-        boxes.push({
-          x: x - 4,
-          y: y - 4,
-          w: itemWidth * scaleFactor + 12,
-          h: itemHeight * scaleFactor + 8,
-        });
+    // Wrap in try-catch to prevent unhandled promise rejections
+    // which can cause mobile Safari to reload the page
+    try {
+      const boxes = [];
+      const textContent = await page.getTextContent();
+
+      // If page changed while we were fetching text content, abort
+      // This prevents "Worker task was terminated" errors from crashing the app
+      if (currentPage !== pageNumberRef.current) {
+        debugLog("Page changed during getTextContent, aborting", { was: currentPage, now: pageNumberRef.current });
+        return;
       }
-    });
-    setRedactionBoxes(boxes);
+
+      const targetYearStr = targetDate?.year?.toString();
+
+      // Guard against missing data
+      if (!targetYearStr || !textContent?.items) {
+        setRedactionBoxes([]);
+        return;
+      }
+
+      const viewport = page.getViewport({ scale: 1 });
+      const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
+      const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
+
+      textContent.items.forEach((item) => {
+        if (item.str?.includes(targetYearStr)) {
+          const pdfX = item.transform?.[4] ?? 0;
+          const pdfY = item.transform?.[5] ?? 0;
+          const itemHeight = item.height || 10;
+          const itemWidth = item.width || 0;
+          const x = pdfX * scaleFactor;
+          const y = (viewport.height - pdfY - itemHeight) * scaleFactor;
+
+          boxes.push({
+            x: x - 4,
+            y: y - 4,
+            w: itemWidth * scaleFactor + 12,
+            h: itemHeight * scaleFactor + 8,
+          });
+        }
+      });
+      setRedactionBoxes(boxes);
+    } catch (error) {
+      // Ignore worker termination errors - these happen when page changes during text extraction
+      if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
+        debugLog("Worker terminated (expected during page change)", { error: error.message });
+        return;
+      }
+      console.error("Error processing PDF page:", error);
+      // Don't crash - just show no redaction boxes
+      setRedactionBoxes([]);
+    }
   };
 
   const pdfUrl = getPdfUrlForPage(pageNumber);
@@ -580,13 +672,19 @@ export default function TimeMachine() {
   }, [gameState, markRoundComplete]);
 
   useEffect(() => {
+    debugLog("PDF fetch effect triggered", { pdfUrl, gameState, pageNumber });
+
     if (!pdfUrl || gameState !== "playing") {
+      debugLog("PDF fetch skipped - conditions not met");
       return;
     }
 
     const controller = new AbortController();
     const fetchPdf = async () => {
+      debugLog("fetchPdf started", { pageNumber });
+
       if (prefetchedPdfUrlsRef.current.has(pageNumber)) {
+        debugLog("Using prefetched PDF");
         const cachedUrl = prefetchedPdfUrlsRef.current.get(pageNumber);
         prefetchedPdfUrlsRef.current.delete(pageNumber);
         if (pdfObjectUrlRef.current) {
@@ -603,11 +701,13 @@ export default function TimeMachine() {
       setPdfSource(null);
 
       if (pdfObjectUrlRef.current) {
+        debugLog("Revoking old object URL");
         URL.revokeObjectURL(pdfObjectUrlRef.current);
         pdfObjectUrlRef.current = null;
       }
 
       try {
+        debugLog("Fetching PDF from network", { pdfUrl });
         const response = await fetch(pdfUrl, { signal: controller.signal });
 
         if (response.status === 403 || response.status === 429) {
@@ -648,14 +748,20 @@ export default function TimeMachine() {
 
     return () => {
       controller.abort();
-      if (pdfObjectUrlRef.current) {
-        URL.revokeObjectURL(pdfObjectUrlRef.current);
-        pdfObjectUrlRef.current = null;
-      }
+      // Note: We intentionally do NOT revoke the object URL here.
+      // Revoking during cleanup causes mobile Safari to crash because
+      // react-pdf may still be rendering the old URL when the effect
+      // re-runs. The URL is revoked inside fetchPdf when a new one
+      // is created to replace it.
     };
   }, [gameState, handleLoadError, pdfUrl]);
 
   useEffect(() => {
+    // Skip prefetching on mobile to reduce memory pressure
+    if (isMobile) {
+      return;
+    }
+
     if (!targetDate || gameState !== "playing") {
       return;
     }
@@ -718,10 +824,52 @@ export default function TimeMachine() {
       controller.abort();
       prefetchControllersRef.current.delete(nextPage);
     };
-  }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
+  }, [gameState, getPdfUrlForPage, isMobile, pageNumber, targetDate]);
+
+  // 🔴 DEBUG: Visible debug panel state
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  // Refresh debug logs when panel is shown
+  useEffect(() => {
+    if (showDebugPanel) {
+      const logs = JSON.parse(localStorage.getItem(DEBUG_KEY) || "[]");
+      setDebugLogs(logs);
+    }
+  }, [showDebugPanel, pageNumber, loading, gameState]);
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
+      {/* 🔴 DEBUG PANEL - tap "Time Machine" title 5 times to toggle */}
+      {showDebugPanel && (
+        <div className="fixed inset-0 z-[100] bg-black/90 p-4 overflow-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-white font-bold">Debug Log</h2>
+            <button
+              onClick={() => setShowDebugPanel(false)}
+              className="text-white bg-red-600 px-3 py-1 rounded"
+            >
+              Close
+            </button>
+          </div>
+          <div className="text-green-400 font-mono text-xs space-y-1">
+            {debugLogs.map((log, i) => (
+              <div key={i} className="border-b border-green-900 pb-1">{log}</div>
+            ))}
+            {debugLogs.length === 0 && <div>No logs yet</div>}
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem(DEBUG_KEY);
+              setDebugLogs([]);
+            }}
+            className="mt-4 text-white bg-gray-600 px-3 py-1 rounded text-sm"
+          >
+            Clear Logs
+          </button>
+        </div>
+      )}
+
       {showTutorial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4 overflow-y-auto">
           <div className="w-full max-w-xs sm:max-w-md rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
@@ -814,7 +962,21 @@ export default function TimeMachine() {
       {/* HEADER */}
       <div className="max-w-6xl mx-auto mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter text-slate-900">
+          <h1
+            className="text-3xl font-black uppercase tracking-tighter text-slate-900 cursor-pointer select-none"
+            onClick={() => {
+              // 🔴 DEBUG: Triple-tap to toggle debug panel
+              const now = Date.now();
+              const lastTap = window._debugTapTime || 0;
+              const tapCount = (now - lastTap < 500) ? (window._debugTapCount || 0) + 1 : 1;
+              window._debugTapTime = now;
+              window._debugTapCount = tapCount;
+              if (tapCount >= 3) {
+                setShowDebugPanel(prev => !prev);
+                window._debugTapCount = 0;
+              }
+            }}
+          >
             Time Machine
           </h1>
           <p className="text-slate-500 text-sm">
@@ -1095,10 +1257,10 @@ export default function TimeMachine() {
 
               <button
                 onClick={handleSubmitGuess}
-                disabled={loading}
+                disabled={loading || feedbackMsg}
                 className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold text-lg hover:bg-blue-600 transition-all shadow-lg hover:shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group"
               >
-                {loading ? "Analyzing..." : "Lock In Guess"}{" "}
+                {loading || feedbackMsg ? "Analyzing..." : "Lock In Guess"}{" "}
                 <ArrowRight
                   size={20}
                   className="group-hover:translate-x-1 transition-transform"
@@ -1132,7 +1294,7 @@ export default function TimeMachine() {
               </span>
               <button
                 type="button"
-                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
+                onClick={() => setZoomLevel((prev) => Math.min(6, prev + 0.25))}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 +
@@ -1172,7 +1334,14 @@ export default function TimeMachine() {
                 <Document
                   key={documentKey}
                   file={pdfSource}
-                  onLoadError={handleLoadError}
+                  onLoadError={(error) => {
+                    debugLog("Document load error", { error: error?.message || String(error) });
+                    // Ignore worker termination errors
+                    if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
+                      return;
+                    }
+                    handleLoadError();
+                  }}
                   className="flex justify-center"
                   loading={null}
                 >
@@ -1181,10 +1350,18 @@ export default function TimeMachine() {
                     scale={pageScale}
                     width={pdfViewportWidth ?? undefined}
                     onLoadSuccess={onPageLoadSuccess}
+                    onLoadError={(error) => {
+                      debugLog("Page load error", { error: error?.message || String(error) });
+                      // Ignore worker termination errors
+                      if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
+                        return;
+                      }
+                      handleLoadError();
+                    }}
                     devicePixelRatio={devicePixelRatio}
                     renderAnnotationLayer={false}
                     renderTextLayer={false}
-                    renderMode="svg"
+                    renderMode={isMobile ? "canvas" : "svg"}
                     className="shadow-xl"
                   />
                 </Document>
