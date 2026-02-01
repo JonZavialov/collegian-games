@@ -85,10 +85,25 @@ export default function OverUnder() {
     fetchData();
   }, []);
 
-  const getRandomCard = useCallback((cardList, exclude = new Set()) => {
-    const available = cardList.filter((c) => !exclude.has(c.id));
+  // Get a random card, optionally filtered by category
+  const getRandomCard = useCallback((cardList, exclude = new Set(), category = null) => {
+    let available = cardList.filter((c) => !exclude.has(c.id));
+    if (category) {
+      available = available.filter((c) => c.category === category);
+    }
     if (available.length === 0) return null;
     return available[Math.floor(Math.random() * available.length)];
+  }, []);
+
+  // Get categories that have at least 2 unused players
+  const getAvailableCategories = useCallback((cardList, exclude = new Set()) => {
+    const categoryCounts = {};
+    for (const card of cardList) {
+      if (!exclude.has(card.id)) {
+        categoryCounts[card.category] = (categoryCounts[card.category] || 0) + 1;
+      }
+    }
+    return Object.keys(categoryCounts).filter((cat) => categoryCounts[cat] >= 2);
   }, []);
 
   const initGame = useCallback(
@@ -96,11 +111,21 @@ export default function OverUnder() {
       usedCardsRef.current = new Set();
       roundRef.current = 0;
 
-      const first = getRandomCard(cardList, usedCardsRef.current);
+      // Get categories with at least 2 players
+      const availableCategories = getAvailableCategories(cardList, usedCardsRef.current);
+      if (availableCategories.length === 0) {
+        setError("Not enough players in any category");
+        return;
+      }
+
+      // Pick a random category
+      const category = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+
+      const first = getRandomCard(cardList, usedCardsRef.current, category);
       if (!first) return;
       usedCardsRef.current.add(first.id);
 
-      const second = getRandomCard(cardList, usedCardsRef.current);
+      const second = getRandomCard(cardList, usedCardsRef.current, category);
       if (!second) return;
       usedCardsRef.current.add(second.id);
 
@@ -112,9 +137,9 @@ export default function OverUnder() {
       setRevealedValue(null);
       setImageErrors({});
 
-      analytics.logStart({ total_cards: cardList.length }, 0);
+      analytics.logStart({ total_cards: cardList.length, category }, 0);
     },
-    [cards, getRandomCard, analytics]
+    [cards, getRandomCard, getAvailableCategories, analytics]
   );
 
   const handleGuess = useCallback(
@@ -159,10 +184,26 @@ export default function OverUnder() {
 
         // Transition to next round after delay
         setTimeout(() => {
-          const nextCard = getRandomCard(cards, usedCardsRef.current);
+          // Try to get next card in same category
+          let nextCard = getRandomCard(cards, usedCardsRef.current, rightCard.category);
+
+          // If no more cards in this category, pick a new category
+          if (!nextCard) {
+            const availableCategories = getAvailableCategories(cards, usedCardsRef.current);
+            if (availableCategories.length === 0) {
+              // No more valid categories - player wins!
+              setGameState("won");
+              analytics.logWin({ final_score: newScore });
+              setIsAnimating(false);
+              return;
+            }
+            // Pick new category and get a card from it
+            const newCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
+            nextCard = getRandomCard(cards, usedCardsRef.current, newCategory);
+          }
 
           if (!nextCard) {
-            // No more cards - player wins!
+            // Truly no more cards
             setGameState("won");
             analytics.logWin({ final_score: newScore });
             setIsAnimating(false);
@@ -202,6 +243,7 @@ export default function OverUnder() {
       highScore,
       cards,
       getRandomCard,
+      getAvailableCategories,
       analytics,
     ]
   );
