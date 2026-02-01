@@ -24,20 +24,51 @@ exports.handler = async (event) => {
     // If we're before August, use previous year's season
     const seasonYear = new Date().getMonth() < 7 ? currentYear - 1 : currentYear;
 
-    const url = `https://api.collegefootballdata.com/stats/player/season?year=${seasonYear}&team=Penn State`;
+    const statsUrl = `https://api.collegefootballdata.com/stats/player/season?year=${seasonYear}&team=Penn State`;
+    const rosterUrl = `https://api.collegefootballdata.com/roster?year=${seasonYear}&team=Penn State`;
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-      },
-    });
+    // Fetch both stats and roster data in parallel
+    const [statsResponse, rosterResponse] = await Promise.all([
+      fetch(statsUrl, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      }),
+      fetch(rosterUrl, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: "application/json",
+        },
+      }),
+    ]);
 
-    if (!response.ok) {
-      throw new Error(`API responded with status ${response.status}`);
+    if (!statsResponse.ok) {
+      throw new Error(`Stats API responded with status ${statsResponse.status}`);
     }
 
-    const rawData = await response.json();
+    const rawData = await statsResponse.json();
+
+    // Build roster lookup map by player ID
+    let rosterMap = new Map();
+    if (rosterResponse.ok) {
+      const rosterData = await rosterResponse.json();
+      for (const player of rosterData) {
+        if (player.id) {
+          rosterMap.set(player.id.toString(), {
+            position: player.position || null,
+            jersey: player.jersey !== undefined ? player.jersey : null,
+            height: player.height || null,
+            weight: player.weight || null,
+            year: player.year || null,
+            homeCity: player.home_city || null,
+            homeState: player.home_state || null,
+            firstName: player.first_name || null,
+            lastName: player.last_name || null,
+          });
+        }
+      }
+    }
 
     // Process and consolidate player stats
     // The API returns one row per player per stat type
@@ -87,6 +118,35 @@ exports.handler = async (event) => {
 
       // Only keep unique player-stat combinations
       if (!playerMap.has(key)) {
+        // Get roster info for this player
+        const rosterInfo = rosterMap.get(playerId.toString()) || {};
+
+        // Format height from inches to feet'inches" format
+        let heightDisplay = null;
+        if (rosterInfo.height) {
+          const feet = Math.floor(rosterInfo.height / 12);
+          const inches = rosterInfo.height % 12;
+          heightDisplay = `${feet}'${inches}"`;
+        }
+
+        // Format year/class
+        const yearLabels = {
+          1: "Freshman",
+          2: "Sophomore",
+          3: "Junior",
+          4: "Senior",
+          5: "5th Year",
+        };
+        const yearDisplay = yearLabels[rosterInfo.year] || null;
+
+        // Format hometown
+        let hometownDisplay = null;
+        if (rosterInfo.homeCity && rosterInfo.homeState) {
+          hometownDisplay = `${rosterInfo.homeCity}, ${rosterInfo.homeState}`;
+        } else if (rosterInfo.homeCity) {
+          hometownDisplay = rosterInfo.homeCity;
+        }
+
         playerMap.set(key, {
           id: key,
           playerId: playerId.toString(),
@@ -95,6 +155,13 @@ exports.handler = async (event) => {
           value: statValue,
           // ESPN headshot URL pattern - may not work for all players
           image: `https://a.espncdn.com/i/headshots/college-football/players/full/${playerId}.png`,
+          // Additional player info from roster
+          position: rosterInfo.position,
+          jersey: rosterInfo.jersey,
+          height: heightDisplay,
+          weight: rosterInfo.weight ? `${rosterInfo.weight} lbs` : null,
+          year: yearDisplay,
+          hometown: hometownDisplay,
         });
       }
     }
