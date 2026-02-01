@@ -534,26 +534,50 @@ export default function OverUnder() {
 
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center text-center max-w-xs">
-          {/* Player Image */}
-          <div className="relative w-24 h-24 sm:w-32 sm:h-32 mb-4 rounded-full overflow-hidden border-4 border-white/20 bg-slate-700 shadow-xl">
-            {imageErrors[card.id] ? (
-              <div className="w-full h-full flex items-center justify-center bg-slate-700">
-                <User className="text-slate-500" size={48} />
+          {/* Player Image with Jersey Number */}
+          <div className="relative mb-4">
+            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white/20 bg-slate-700 shadow-xl">
+              {imageErrors[card.id] ? (
+                <div className="w-full h-full flex items-center justify-center bg-slate-700">
+                  <User className="text-slate-500" size={48} />
+                </div>
+              ) : (
+                <img
+                  src={getImageSrc(card)}
+                  alt={card.name}
+                  className="w-full h-full object-cover"
+                  onError={() => handleImageError(card.id)}
+                />
+              )}
+            </div>
+            {/* Jersey Number Badge */}
+            {card.jersey !== null && card.jersey !== undefined && (
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 border-2 border-white flex items-center justify-center shadow-lg">
+                <span className="text-xs sm:text-sm font-black text-white">
+                  #{card.jersey}
+                </span>
               </div>
-            ) : (
-              <img
-                src={getImageSrc(card)}
-                alt={card.name}
-                className="w-full h-full object-cover"
-                onError={() => handleImageError(card.id)}
-              />
             )}
           </div>
 
           {/* Player Name */}
-          <h2 className="text-xl sm:text-2xl font-black text-white mb-2 drop-shadow-lg">
+          <h2 className="text-xl sm:text-2xl font-black text-white mb-1 drop-shadow-lg">
             {card.name}
           </h2>
+
+          {/* Position & Class */}
+          {(card.position || card.year) && (
+            <p className="text-xs sm:text-sm font-semibold text-slate-400 mb-1">
+              {[card.position, card.year].filter(Boolean).join(" • ")}
+            </p>
+          )}
+
+          {/* Physical Stats */}
+          {(card.height || card.weight) && (
+            <p className="text-xs text-slate-500 mb-2">
+              {[card.height, card.weight].filter(Boolean).join(" | ")}
+            </p>
+          )}
 
           {/* Stat Category */}
           <p className="text-sm sm:text-base font-bold text-slate-300 uppercase tracking-wider mb-3">
