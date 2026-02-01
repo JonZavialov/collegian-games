@@ -550,13 +550,12 @@ export default function HeadlineHunter() {
                       </button>
                     </div>
                   ) : (
-                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
-                      You&apos;re done for today. Next round in{" "}
-                      <span className="font-black text-slate-800">
-                        {formatCountdown(timeUntilReset)}
-                      </span>
-                      .
-                    </div>
+                    <button
+                      onClick={() => setGameState("daily-complete")}
+                      className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
+                    >
+                      See Summary <ArrowRight size={16} />
+                    </button>
                   )}
                 </div>
                 <EmailSignup gameName="Headline Hunter" />
