@@ -395,7 +395,7 @@ export default function OverUnder() {
 
     return (
       <div
-        className={`relative flex-1 ${bgClass} flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden transition-all duration-500`}
+        className={`relative flex-1 ${bgClass} flex flex-col items-center justify-center p-6 sm:p-8 overflow-hidden transition-all duration-500 min-h-[280px] sm:min-h-0`}
       >
         {/* Background gradient overlay */}
         <div
@@ -581,37 +581,31 @@ export default function OverUnder() {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
-          {/* Left Card */}
-          {leftCard && (
-            <PlayerCard
-              card={leftCard}
-              side="left"
-              showValue={true}
-              result={null}
-              revealed={null}
-            />
-          )}
+        <div className="flex-1 flex flex-col">
+          {/* Cards Container */}
+          <div className="flex-1 flex flex-col sm:flex-row relative">
+            {/* Left Card */}
+            {leftCard && (
+              <PlayerCard
+                card={leftCard}
+                side="left"
+                showValue={true}
+                result={null}
+                revealed={null}
+              />
+            )}
 
-          {/* VS Badge - only show on desktop, hidden on mobile */}
-          <div className="hidden sm:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
-            <div className="w-20 h-20 rounded-full bg-slate-900 border-4 border-slate-600 flex items-center justify-center shadow-2xl">
-              <span className="text-2xl font-black text-white">
-                VS
-              </span>
+            {/* VS Badge - centered between cards */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+              <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-full bg-slate-900 border-4 border-slate-600 flex items-center justify-center shadow-2xl">
+                <span className="text-lg sm:text-2xl font-black text-white">
+                  VS
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* Mobile VS divider */}
-          <div className="sm:hidden flex items-center justify-center py-2 bg-slate-900 relative z-10">
-            <div className="w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 flex items-center justify-center shadow-lg">
-              <span className="text-sm font-black text-white">VS</span>
-            </div>
-          </div>
-
-          {/* Right Card */}
-          {rightCard && (
-            <div className="flex-1 flex flex-col relative">
+            {/* Right Card */}
+            {rightCard && (
               <PlayerCard
                 card={rightCard}
                 side="right"
@@ -619,17 +613,17 @@ export default function OverUnder() {
                 result={showResult}
                 revealed={revealedValue}
               />
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Guess Buttons - fixed at bottom on mobile, absolute on desktop */}
+          {/* Guess Buttons - always at bottom, not overlapping cards */}
           {gameState === "playing" && !showResult && (
-            <div className="sm:absolute sm:bottom-0 sm:right-0 sm:left-1/2 bg-slate-900 sm:bg-gradient-to-t sm:from-slate-900 sm:via-slate-900/90 sm:to-transparent p-4 z-20">
-              <div className="flex gap-3 justify-center max-w-xs mx-auto">
+            <div className="bg-slate-900 border-t border-slate-700 p-4">
+              <div className="flex gap-3 justify-center max-w-sm mx-auto">
                 <button
                   onClick={() => handleGuess("higher")}
                   disabled={isAnimating}
-                  className="flex-1 px-6 py-3 sm:py-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition shadow-lg shadow-green-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  className="flex-1 px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-500 transition shadow-lg shadow-green-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   <ChevronUp size={24} strokeWidth={3} />
                   <span>Higher</span>
@@ -637,7 +631,7 @@ export default function OverUnder() {
                 <button
                   onClick={() => handleGuess("lower")}
                   disabled={isAnimating}
-                  className="flex-1 px-6 py-3 sm:py-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                  className="flex-1 px-6 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-500 transition shadow-lg shadow-red-900/50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                 >
                   <ChevronDown size={24} strokeWidth={3} />
                   <span>Lower</span>
