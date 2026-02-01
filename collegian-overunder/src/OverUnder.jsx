@@ -150,6 +150,7 @@ export default function OverUnder() {
   const [score, setScore] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [showResult, setShowResult] = useState(null);
   const [revealedValue, setRevealedValue] = useState(null);
@@ -303,15 +304,19 @@ export default function OverUnder() {
           if (nextRoundIndex >= dailyRounds.length) {
             // Completed all rounds - daily complete!
             setGameState("daily-complete");
-            saveDailyProgress(nextRoundIndex, newScore, true);
+            if (!isReplaying) {
+              saveDailyProgress(nextRoundIndex, newScore, true);
+            }
             if (!roundCompletedRef.current) {
               roundCompletedRef.current = true;
-              analytics.logWin({ final_score: newScore, rounds_completed: nextRoundIndex });
+              analytics.logWin({ final_score: newScore, rounds_completed: nextRoundIndex, is_replay: isReplaying });
             }
           } else {
             // Move to next round
             setRoundIndex(nextRoundIndex);
-            saveDailyProgress(nextRoundIndex, newScore, false);
+            if (!isReplaying) {
+              saveDailyProgress(nextRoundIndex, newScore, false);
+            }
           }
 
           setShowResult(null);
@@ -328,15 +333,19 @@ export default function OverUnder() {
           if (nextRoundIndex >= dailyRounds.length) {
             // Completed all rounds - daily complete!
             setGameState("daily-complete");
-            saveDailyProgress(nextRoundIndex, score, true);
+            if (!isReplaying) {
+              saveDailyProgress(nextRoundIndex, score, true);
+            }
             if (!roundCompletedRef.current) {
               roundCompletedRef.current = true;
-              analytics.logWin({ final_score: score, rounds_completed: nextRoundIndex });
+              analytics.logWin({ final_score: score, rounds_completed: nextRoundIndex, is_replay: isReplaying });
             }
           } else {
             // Move to next round (score stays the same)
             setRoundIndex(nextRoundIndex);
-            saveDailyProgress(nextRoundIndex, score, false);
+            if (!isReplaying) {
+              saveDailyProgress(nextRoundIndex, score, false);
+            }
           }
 
           setShowResult(null);
@@ -356,6 +365,7 @@ export default function OverUnder() {
       dailyRounds.length,
       saveDailyProgress,
       analytics,
+      isReplaying,
     ]
   );
 
@@ -370,6 +380,17 @@ export default function OverUnder() {
     }
     setShowTutorial(false);
   };
+
+  const startReplay = useCallback(() => {
+    setIsReplaying(true);
+    setScore(0);
+    setRoundIndex(0);
+    roundCompletedRef.current = false;
+    setGameState("playing");
+    setShowResult(null);
+    setRevealedValue(null);
+    analytics.logAction("replay_started", {}, 0);
+  }, [analytics]);
 
   const handleImageError = (cardId) => {
     setImageErrors((prev) => ({ ...prev, [cardId]: true }));
@@ -638,10 +659,21 @@ export default function OverUnder() {
             {score}/{DAILY_LIMIT}
           </p>
         </div>
-        <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
+        <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
           <p className="text-slate-400 text-sm">Next challenge in</p>
           <p className="text-2xl font-black text-white font-mono">
             {formatCountdown(countdown)}
+          </p>
+        </div>
+        <div className="mb-6 space-y-3">
+          <button
+            onClick={startReplay}
+            className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-500 transition shadow-lg"
+          >
+            Replay Today&apos;s Matchups
+          </button>
+          <p className="text-xs text-slate-500">
+            Same players, same stats. New matchups tomorrow!
           </p>
         </div>
         <EmailSignup gameName="Over/Under" />
@@ -706,6 +738,18 @@ export default function OverUnder() {
         dailyCompleteScreen
       ) : (
         <div className="flex-1 flex flex-col">
+          {/* Replay Mode Banner */}
+          {isReplaying && (
+            <div className="bg-amber-900/30 border-b border-amber-700/50 px-4 py-3 text-center">
+              <p className="text-amber-300 font-semibold text-sm">
+                Replay Mode — Same matchups from earlier today
+              </p>
+              <p className="text-amber-500 text-xs mt-1">
+                New matchups available tomorrow at midnight
+              </p>
+            </div>
+          )}
+
           {/* Cards Container */}
           <div className="flex-1 flex flex-col sm:flex-row relative">
             {/* Left Card */}
