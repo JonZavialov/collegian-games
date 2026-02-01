@@ -110,6 +110,7 @@ export default function TimeMachine() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [closestGuessDiff, setClosestGuessDiff] = useState(null);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
       return { dateKey: getTodayKey(), roundsCompleted: 0 };
@@ -208,6 +209,28 @@ export default function TimeMachine() {
     setShowTutorial(false);
   };
 
+  const startReplay = useCallback(() => {
+    setIsReplaying(true);
+    setScore(0);
+    setCurrentRoundNumber(1);
+    roundCompletedRef.current = false;
+    analytics.logAction("replay_started", {}, 1);
+    // Trigger the game to start again
+    setLoading(true);
+    setGameState("playing");
+    setPageNumber(1);
+    setRedactionBoxes([]);
+    setRetryCount(0);
+    setArchiveError(null);
+    setFeedbackMsg(null);
+    setTargetDate(getDailyDate(getTodayKey(), 1));
+    setGuessYear(1975);
+    setZoomLevel(1);
+    setPdfSource(null);
+    setTotalPages(null);
+    setClosestGuessDiff(null);
+  }, [analytics]);
+
   useEffect(() => {
     if (!pdfWrapperRef.current) {
       return;
@@ -277,6 +300,12 @@ export default function TimeMachine() {
       return;
     }
     roundCompletedRef.current = true;
+
+    // Don't update localStorage progress during replay
+    if (isReplaying) {
+      return;
+    }
+
     const todayKey = getTodayKey();
     const baseProgress =
       dailyProgress.dateKey === todayKey
@@ -291,7 +320,7 @@ export default function TimeMachine() {
     };
     setDailyProgress(updatedProgress);
     localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
-  }, [currentRoundNumber, dailyProgress]);
+  }, [currentRoundNumber, dailyProgress, isReplaying]);
 
   const handleLoadError = useCallback(() => {
     if (pageNumber === 1) {
@@ -828,6 +857,17 @@ export default function TimeMachine() {
             shake ? "border-red-400 bg-red-50" : ""
           }`}
         >
+          {isReplaying && gameState === "playing" && (
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
+              <p className="text-amber-800 font-semibold text-sm">
+                Replay Mode — Same issue from earlier today
+              </p>
+              <p className="text-amber-600 text-xs mt-1">
+                New issue available tomorrow at midnight
+              </p>
+            </div>
+          )}
+
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-4">
               <div
@@ -896,7 +936,22 @@ export default function TimeMachine() {
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                {roundsLeft > 0 ? (
+                {isReplaying ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                      Replay complete! Come back tomorrow for a new issue.
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsReplaying(false);
+                        setGameState("daily-complete");
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                    >
+                      Back to summary
+                    </button>
+                  </div>
+                ) : roundsLeft > 0 ? (
                   <button
                     onClick={startNewGame}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg"
@@ -950,7 +1005,22 @@ export default function TimeMachine() {
                 >
                   View Full Issue <ExternalLink size={14} />
                 </a>
-                {roundsLeft > 0 ? (
+                {isReplaying ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                      Replay complete! Come back tomorrow for a new issue.
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsReplaying(false);
+                        setGameState("daily-complete");
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                    >
+                      Back to summary
+                    </button>
+                  </div>
+                ) : roundsLeft > 0 ? (
                   <button
                     onClick={() => {
                       setScore(0);
@@ -986,6 +1056,17 @@ export default function TimeMachine() {
                   {formatCountdown(timeUntilReset)}
                 </span>
                 .
+              </div>
+              <div className="mt-4 pt-4 border-t border-blue-100 space-y-3">
+                <button
+                  onClick={startReplay}
+                  className="w-full px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition shadow-lg"
+                >
+                  Replay Today&apos;s Issue
+                </button>
+                <p className="text-xs text-slate-500">
+                  Same newspaper, same fun. New issue tomorrow!
+                </p>
               </div>
               <EmailSignup gameName="Time Machine" />
             </div>
