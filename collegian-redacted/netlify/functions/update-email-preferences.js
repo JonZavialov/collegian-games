@@ -44,10 +44,12 @@ exports.handler = async (event) => {
       };
     }
 
-    // Handle unsubscribe - delete the record
+    // Handle unsubscribe - set unsubscribed flag to true
     if (unsubscribe) {
       await client.query(
-        `DELETE FROM email_signups WHERE LOWER(email) = LOWER($1)`,
+        `UPDATE email_signups
+         SET unsubscribed = true, newsletter = false, giveaways = false
+         WHERE LOWER(email) = LOWER($1)`,
         [email.trim()]
       );
 
@@ -74,10 +76,10 @@ exports.handler = async (event) => {
       };
     }
 
-    // Update preferences
+    // Update preferences and clear unsubscribed flag if re-subscribing
     await client.query(
       `UPDATE email_signups
-       SET newsletter = $1, giveaways = $2
+       SET newsletter = $1, giveaways = $2, unsubscribed = false
        WHERE LOWER(email) = LOWER($3)`,
       [newsletter || false, giveaways || false, email.trim()]
     );
