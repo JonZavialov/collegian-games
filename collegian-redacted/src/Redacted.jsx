@@ -1034,7 +1034,7 @@ export default function Redacted() {
                       }}
                       className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
                     >
-                      {isReplaying ? "Next Story" : "Try Again"}
+                      Next Story
                     </button>
                   ) : isReplaying ? (
                     <div className="flex flex-col items-center gap-2">
