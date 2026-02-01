@@ -30,7 +30,7 @@ exports.handler = async (event) => {
     await client.connect();
 
     const result = await client.query(
-      `SELECT newsletter, giveaways FROM email_signups WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+      `SELECT newsletter, giveaways, unsubscribed FROM email_signups WHERE LOWER(email) = LOWER($1) LIMIT 1`,
       [email.trim()]
     );
 
@@ -49,6 +49,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         newsletter: result.rows[0].newsletter,
         giveaways: result.rows[0].giveaways,
+        unsubscribed: result.rows[0].unsubscribed || false,
       }),
     };
   } catch (error) {
