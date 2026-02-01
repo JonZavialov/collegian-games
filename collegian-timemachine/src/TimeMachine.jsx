@@ -22,7 +22,9 @@ import "react-pdf/dist/Page/TextLayer.css";
 const DEBUG_KEY = "timemachine_debug_log";
 const debugLog = (message, data = null) => {
   const timestamp = new Date().toISOString().slice(11, 23);
-  const entry = data ? `[${timestamp}] ${message}: ${JSON.stringify(data)}` : `[${timestamp}] ${message}`;
+  const entry = data
+    ? `[${timestamp}] ${message}: ${JSON.stringify(data)}`
+    : `[${timestamp}] ${message}`;
   const existing = JSON.parse(localStorage.getItem(DEBUG_KEY) || "[]");
   existing.push(entry);
   // Keep last 50 entries
@@ -96,10 +98,7 @@ const getDailyDate = (dateKey, roundNumber = 1) => {
       start.getTime() + random() * (end.getTime() - start.getTime()),
     );
     attempts += 1;
-  } while (
-    (date.getUTCDay() === 0 || date.getUTCDay() === 6) &&
-    attempts < 25
-  );
+  } while ((date.getUTCDay() === 0 || date.getUTCDay() === 6) && attempts < 25);
 
   const yyyy = date.getUTCFullYear();
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -125,8 +124,8 @@ export default function TimeMachine() {
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" && window.innerWidth < 768
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 768,
   );
   const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -292,7 +291,9 @@ export default function TimeMachine() {
       const containerWidth = pdfWrapperRef.current?.clientWidth ?? 0;
       // On mobile, cap the width more aggressively to reduce memory usage
       // Large canvas elements on mobile Safari can cause crashes
-      const maxWidth = isMobile ? Math.min(containerWidth - 32, 500) : containerWidth - 32;
+      const maxWidth = isMobile
+        ? Math.min(containerWidth - 32, 500)
+        : containerWidth - 32;
       const nextWidth = Math.max(maxWidth, 280);
       setPdfViewportWidth(nextWidth);
     };
@@ -469,7 +470,10 @@ export default function TimeMachine() {
       }
 
       // WRONG GUESS UX - lock immediately to prevent spam
-      debugLog("Wrong guess - starting page transition", { from: pageNumber, to: pageNumber + 1 });
+      debugLog("Wrong guess - starting page transition", {
+        from: pageNumber,
+        to: pageNumber + 1,
+      });
       isProcessingGuessRef.current = true;
       setShake(true);
       setFeedbackMsg(
@@ -493,9 +497,12 @@ export default function TimeMachine() {
 
       // Use longer delay on mobile to allow memory cleanup between page loads
       // Mobile Safari needs more time to garbage collect the old PDF canvas
-      const transitionDelay = isMobile ? 2000 : 700;
+      const transitionDelay = 700;
       setTimeout(() => {
-        debugLog("setTimeout fired - incrementing page", { newPage: pageNumber + 1, delay: transitionDelay });
+        debugLog("setTimeout fired - incrementing page", {
+          newPage: pageNumber + 1,
+          delay: transitionDelay,
+        });
         setIsTransitioning(false);
         setPageNumber((prev) => prev + 1);
         setLoading(true);
@@ -622,7 +629,10 @@ export default function TimeMachine() {
       // If page changed while we were fetching text content, abort
       // This prevents "Worker task was terminated" errors from crashing the app
       if (currentPage !== pageNumberRef.current) {
-        debugLog("Page changed during getTextContent, aborting", { was: currentPage, now: pageNumberRef.current });
+        debugLog("Page changed during getTextContent, aborting", {
+          was: currentPage,
+          now: pageNumberRef.current,
+        });
         return;
       }
 
@@ -635,7 +645,9 @@ export default function TimeMachine() {
       }
 
       const viewport = page.getViewport({ scale: 1 });
-      const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
+      const baseScale = pdfViewportWidth
+        ? pdfViewportWidth / viewport.width
+        : 1;
       const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
 
       textContent.items.forEach((item) => {
@@ -658,8 +670,13 @@ export default function TimeMachine() {
       setRedactionBoxes(boxes);
     } catch (error) {
       // Ignore worker termination errors - these happen when page changes during text extraction
-      if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
-        debugLog("Worker terminated (expected during page change)", { error: error.message });
+      if (
+        error?.message?.includes("terminated") ||
+        error?.message?.includes("destroyed")
+      ) {
+        debugLog("Worker terminated (expected during page change)", {
+          error: error.message,
+        });
         return;
       }
       console.error("Error processing PDF page:", error);
@@ -675,7 +692,12 @@ export default function TimeMachine() {
     : "#";
   // On mobile, don't render PDF during page transitions (when feedbackMsg is shown or isTransitioning)
   // This completely unmounts react-pdf, giving it time to clean up memory
-  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError && !isTransitioning && !(isMobile && feedbackMsg);
+  const shouldRenderPdf =
+    pdfSource &&
+    gameState === "playing" &&
+    !archiveError &&
+    !isTransitioning &&
+    !(isMobile && feedbackMsg);
   const pageScale = zoomLevel * (isMobile ? 0.6 : 1);
   const documentKey = `${targetDate?.full ?? "no-date"}-${pageNumber}`;
 
@@ -716,7 +738,10 @@ export default function TimeMachine() {
 
       // Check if page already changed before we even start
       if (effectPageNumber !== pageNumberRef.current) {
-        debugLog("Page already changed, skipping fetch", { was: effectPageNumber, now: pageNumberRef.current });
+        debugLog("Page already changed, skipping fetch", {
+          was: effectPageNumber,
+          now: pageNumberRef.current,
+        });
         return;
       }
 
@@ -749,7 +774,10 @@ export default function TimeMachine() {
 
         // Check again after fetch completes - if page changed, don't process
         if (effectPageNumber !== pageNumberRef.current) {
-          debugLog("Page changed during fetch, discarding response", { was: effectPageNumber, now: pageNumberRef.current });
+          debugLog("Page changed during fetch, discarding response", {
+            was: effectPageNumber,
+            now: pageNumberRef.current,
+          });
           return;
         }
 
@@ -774,11 +802,16 @@ export default function TimeMachine() {
 
         // Final check before creating object URL - this is the expensive part
         if (effectPageNumber !== pageNumberRef.current) {
-          debugLog("Page changed during blob read, discarding", { was: effectPageNumber, now: pageNumberRef.current });
+          debugLog("Page changed during blob read, discarding", {
+            was: effectPageNumber,
+            now: pageNumberRef.current,
+          });
           return;
         }
 
-        debugLog("Creating object URL for page", { pageNumber: effectPageNumber });
+        debugLog("Creating object URL for page", {
+          pageNumber: effectPageNumber,
+        });
         const objectUrl = URL.createObjectURL(blob);
         pdfObjectUrlRef.current = objectUrl;
         setPdfSource(objectUrl);
@@ -786,7 +819,9 @@ export default function TimeMachine() {
         debugLog("PDF loaded successfully", { pageNumber: effectPageNumber });
       } catch (error) {
         if (controller.signal.aborted) {
-          debugLog("Fetch aborted (expected)", { pageNumber: effectPageNumber });
+          debugLog("Fetch aborted (expected)", {
+            pageNumber: effectPageNumber,
+          });
           return;
         }
         console.error("Failed to fetch PDF:", error);
@@ -907,7 +942,9 @@ export default function TimeMachine() {
           </div>
           <div className="text-green-400 font-mono text-xs space-y-1">
             {debugLogs.map((log, i) => (
-              <div key={i} className="border-b border-green-900 pb-1">{log}</div>
+              <div key={i} className="border-b border-green-900 pb-1">
+                {log}
+              </div>
             ))}
             {debugLogs.length === 0 && <div>No logs yet</div>}
           </div>
@@ -1021,11 +1058,12 @@ export default function TimeMachine() {
               // 🔴 DEBUG: Triple-tap to toggle debug panel
               const now = Date.now();
               const lastTap = window._debugTapTime || 0;
-              const tapCount = (now - lastTap < 500) ? (window._debugTapCount || 0) + 1 : 1;
+              const tapCount =
+                now - lastTap < 500 ? (window._debugTapCount || 0) + 1 : 1;
               window._debugTapTime = now;
               window._debugTapCount = tapCount;
               if (tapCount >= 3) {
-                setShowDebugPanel(prev => !prev);
+                setShowDebugPanel((prev) => !prev);
                 window._debugTapCount = 0;
               }
             }}
@@ -1050,7 +1088,8 @@ export default function TimeMachine() {
             onClick={openTutorial}
             className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 shadow-sm transition hover:border-blue-200 hover:text-blue-700"
           >
-            <Info size={14} /> <span className="hidden sm:inline">How to play</span>
+            <Info size={14} />{" "}
+            <span className="hidden sm:inline">How to play</span>
           </button>
           <button
             type="button"
@@ -1388,9 +1427,14 @@ export default function TimeMachine() {
                   key={documentKey}
                   file={pdfSource}
                   onLoadError={(error) => {
-                    debugLog("Document load error", { error: error?.message || String(error) });
+                    debugLog("Document load error", {
+                      error: error?.message || String(error),
+                    });
                     // Ignore worker termination errors
-                    if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
+                    if (
+                      error?.message?.includes("terminated") ||
+                      error?.message?.includes("destroyed")
+                    ) {
                       return;
                     }
                     handleLoadError();
@@ -1404,9 +1448,14 @@ export default function TimeMachine() {
                     width={pdfViewportWidth ?? undefined}
                     onLoadSuccess={onPageLoadSuccess}
                     onLoadError={(error) => {
-                      debugLog("Page load error", { error: error?.message || String(error) });
+                      debugLog("Page load error", {
+                        error: error?.message || String(error),
+                      });
                       // Ignore worker termination errors
-                      if (error?.message?.includes("terminated") || error?.message?.includes("destroyed")) {
+                      if (
+                        error?.message?.includes("terminated") ||
+                        error?.message?.includes("destroyed")
+                      ) {
                         return;
                       }
                       handleLoadError();
