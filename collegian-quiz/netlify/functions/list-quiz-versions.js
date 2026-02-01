@@ -5,11 +5,8 @@ const QUIZ_SLUG = "beat-the-editor";
 const SESSION_COOKIE = "quiz_admin_session";
 const MAX_VERSIONS = 50;
 
+// Use Netlify's trusted IP header (cannot be spoofed by clients)
 const getClientIp = (event) => {
-  const forwarded = event.headers["x-forwarded-for"];
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
   return (
     event.headers["x-nf-client-connection-ip"] ||
     event.headers["client-ip"] ||
@@ -88,9 +85,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ versions: versionsResult.rows }),
     };
   } catch (error) {
+    console.error("List versions error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      body: JSON.stringify({ message: "An error occurred." }),
     };
   } finally {
     await client.end();

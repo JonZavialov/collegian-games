@@ -4,11 +4,8 @@ const crypto = require("crypto");
 const QUIZ_SLUG = "beat-the-editor";
 const SESSION_COOKIE = "quiz_admin_session";
 
+// Use Netlify's trusted IP header (cannot be spoofed by clients)
 const getClientIp = (event) => {
-  const forwarded = event.headers["x-forwarded-for"];
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
   return (
     event.headers["x-nf-client-connection-ip"] ||
     event.headers["client-ip"] ||
@@ -28,6 +25,14 @@ const hashToken = (token) =>
   crypto.createHash("sha256").update(token).digest("hex");
 
 exports.handler = async (event) => {
+  // Only allow POST requests
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ message: "Method not allowed." }),
+    };
+  }
+
   const client = new Client({
     host: process.env.DB_HOST,
     database: process.env.DB_NAME,
@@ -144,10 +149,15 @@ exports.handler = async (event) => {
       body: JSON.stringify({ data: restoreResult.rows[0].data }),
     };
   } catch (error) {
-    await client.query("ROLLBACK");
+    try {
+      await client.query("ROLLBACK");
+    } catch (_) {
+      // Ignore rollback errors
+    }
+    console.error("Restore error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      body: JSON.stringify({ message: "An error occurred." }),
     };
   } finally {
     await client.end();

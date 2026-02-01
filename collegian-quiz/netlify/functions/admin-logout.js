@@ -50,9 +50,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ authenticated: false }),
     };
   } catch (error) {
+    console.error("Logout error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      body: JSON.stringify({ message: "An error occurred." }),
     };
   } finally {
     await client.end();

@@ -17,12 +17,10 @@ exports.handler = async () => {
   try {
     await client.connect();
     const result = await client.query(
-      `
-      SELECT data, published_at
-      FROM quiz_configs
-      WHERE slug = $1
-      LIMIT 1
-      `,
+      `SELECT data, published_at
+       FROM quiz_configs
+       WHERE slug = $1
+       LIMIT 1`,
       [QUIZ_SLUG]
     );
 
@@ -41,9 +39,10 @@ exports.handler = async () => {
       }),
     };
   } catch (error) {
+    console.error("Get quiz error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      body: JSON.stringify({ message: "An error occurred." }),
     };
   } finally {
     await client.end();
