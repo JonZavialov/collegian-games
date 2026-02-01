@@ -168,6 +168,7 @@ export default function Redacted() {
 
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
   const tutorialStorageKey = "redacted_tutorial_dismissed";
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
@@ -291,6 +292,15 @@ export default function Redacted() {
     setShowTutorial(false);
   };
 
+  const startReplay = useCallback(() => {
+    setIsReplaying(true);
+    setScore(0);
+    setCurrentRoundNumber(1);
+    roundCompletedRef.current = false;
+    setGameState("playing");
+    analytics.logAction("replay_started", {}, 1);
+  }, [analytics]);
+
   const tutorialModal = showTutorial ? (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-100/95 backdrop-blur p-3 sm:p-4 overflow-y-auto">
       <div className="w-full max-w-sm sm:max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl my-auto">
@@ -374,12 +384,15 @@ export default function Redacted() {
       dailyProgress.dateKey === todayKey
         ? dailyProgress
         : { dateKey: todayKey, roundsCompleted: 0 };
-    if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
+
+    // In replay mode, use currentRoundNumber directly
+    // Otherwise, check if daily limit is reached
+    if (!isReplaying && baseProgress.roundsCompleted >= DAILY_LIMIT) {
       setGameState("daily-complete");
       return;
     }
 
-    const roundNumber = baseProgress.roundsCompleted + 1;
+    const roundNumber = isReplaying ? currentRoundNumber : baseProgress.roundsCompleted + 1;
     const dailyRounds = getDailyRounds(articleList, todayKey);
     const article = dailyRounds[roundNumber - 1];
     if (!article) {
@@ -649,6 +662,12 @@ export default function Redacted() {
       return;
     }
     roundCompletedRef.current = true;
+
+    // Don't update localStorage progress during replay
+    if (isReplaying) {
+      return;
+    }
+
     const todayKey = getTodayKey();
     const baseProgress =
       dailyProgress.dateKey === todayKey
@@ -663,7 +682,7 @@ export default function Redacted() {
     };
     setDailyProgress(updatedProgress);
     localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
-  }, [currentRoundNumber, dailyProgress]);
+  }, [currentRoundNumber, dailyProgress, isReplaying]);
 
   const handleGiveUp = () => {
     if (gameState !== "playing") return;
@@ -813,6 +832,17 @@ export default function Redacted() {
       </div>
 
       <div className="max-w-2xl mx-auto z-10 relative" ref={listRef}>
+        {isReplaying && gameState !== "daily-complete" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center mb-4">
+            <p className="text-amber-800 font-semibold text-sm">
+              Replay Mode — Same headlines from earlier today
+            </p>
+            <p className="text-amber-600 text-xs mt-1">
+              New rounds available tomorrow at midnight
+            </p>
+          </div>
+        )}
+
         {gameState === "daily-complete" ? (
           <div className="bg-white rounded-xl shadow-xl border-4 border-white p-6 md:p-10 text-center space-y-4">
             <h2 className="text-2xl font-black text-slate-900">
@@ -828,6 +858,21 @@ export default function Redacted() {
               </span>
               .
             </div>
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <button
+                onClick={() => {
+                  startReplay();
+                  setTimeout(() => setupRound(), 0);
+                }}
+                className="w-full px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition shadow-lg"
+              >
+                Replay Today&apos;s Headlines
+              </button>
+              <p className="text-xs text-slate-500">
+                Same puzzles, same fun. Come back tomorrow for fresh content!
+              </p>
+            </div>
+            <EmailSignup gameName="Redacted" />
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-xl border-4 border-white p-4 md:p-10 flex flex-col justify-center gap-6 relative overflow-hidden min-h-[200px] md:min-h-[300px]">
@@ -913,13 +958,36 @@ export default function Redacted() {
                   >
                     Read Story <ExternalLink size={16} />
                   </a>
-                  {roundsLeft > 0 ? (
+                  {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
-                      onClick={() => setupRound()}
+                      onClick={() => {
+                        if (isReplaying) {
+                          setCurrentRoundNumber((prev) => prev + 1);
+                          roundCompletedRef.current = false;
+                          setTimeout(() => setupRound(), 0);
+                        } else {
+                          setupRound();
+                        }
+                      }}
                       className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
                     >
                       Next Story <ArrowRight size={16} />
                     </button>
+                  ) : isReplaying ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                        Replay complete! Come back tomorrow for new headlines.
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsReplaying(false);
+                          setGameState("daily-complete");
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                      >
+                        Back to summary
+                      </button>
+                    </div>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
                       You&apos;re done for today. Next round in{" "}
@@ -953,16 +1021,37 @@ export default function Redacted() {
                   >
                     Read Story <ExternalLink size={16} />
                   </a>
-                  {roundsLeft > 0 ? (
+                  {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
                       onClick={() => {
-                        setScore(0);
-                        setupRound();
+                        if (isReplaying) {
+                          setCurrentRoundNumber((prev) => prev + 1);
+                          roundCompletedRef.current = false;
+                          setTimeout(() => setupRound(), 0);
+                        } else {
+                          setScore(0);
+                          setupRound();
+                        }
                       }}
                       className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
                     >
-                      Try Again
+                      {isReplaying ? "Next Story" : "Try Again"}
                     </button>
+                  ) : isReplaying ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                        Replay complete! Come back tomorrow for new headlines.
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsReplaying(false);
+                          setGameState("daily-complete");
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                      >
+                        Back to summary
+                      </button>
+                    </div>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
                       That&apos;s all for today. See you in{" "}

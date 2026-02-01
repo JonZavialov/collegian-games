@@ -80,6 +80,7 @@ export default function HeadlineHunter() {
   const [wrongGuesses, setWrongGuesses] = useState([]);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
+  const [isReplaying, setIsReplaying] = useState(false);
   const [dailyProgress, setDailyProgress] = useState(() => {
     if (typeof window === "undefined") {
       return { dateKey: getTodayKey(), roundsCompleted: 0 };
@@ -201,6 +202,15 @@ export default function HeadlineHunter() {
     setShowTutorial(false);
   };
 
+  const startReplay = useCallback(() => {
+    setIsReplaying(true);
+    setScore(0);
+    setCurrentRoundNumber(1);
+    roundCompletedRef.current = false;
+    setGameState("playing");
+    analytics.logAction("replay_started", {}, 1);
+  }, [analytics]);
+
   const setupRound = useCallback(
     (articleList = articles) => {
       if (articleList.length < 4) return;
@@ -210,12 +220,15 @@ export default function HeadlineHunter() {
         dailyProgress.dateKey === todayKey
           ? dailyProgress
           : { dateKey: todayKey, roundsCompleted: 0 };
-      if (baseProgress.roundsCompleted >= DAILY_LIMIT) {
+
+      // In replay mode, use currentRoundNumber directly
+      // Otherwise, check if daily limit is reached
+      if (!isReplaying && baseProgress.roundsCompleted >= DAILY_LIMIT) {
         setGameState("daily-complete");
         return;
       }
 
-      const roundNumber = baseProgress.roundsCompleted + 1;
+      const roundNumber = isReplaying ? currentRoundNumber : baseProgress.roundsCompleted + 1;
       const dailyRounds = getDailyRounds(articleList, todayKey);
       const correct = dailyRounds[roundNumber - 1];
       if (!correct) {
@@ -241,11 +254,11 @@ export default function HeadlineHunter() {
       analytics.logStart({ total_articles: articleList.length }, roundNumber);
       analytics.logAction(
         "round_start",
-        { options_count: options.length },
+        { options_count: options.length, is_replay: isReplaying },
         roundNumber,
       );
     },
-    [analytics, articles, dailyProgress]
+    [analytics, articles, dailyProgress, isReplaying, currentRoundNumber]
   );
 
   const markRoundComplete = useCallback(() => {
@@ -253,6 +266,12 @@ export default function HeadlineHunter() {
       return;
     }
     roundCompletedRef.current = true;
+
+    // Don't update localStorage progress during replay
+    if (isReplaying) {
+      return;
+    }
+
     const todayKey = getTodayKey();
     const baseProgress =
       dailyProgress.dateKey === todayKey
@@ -267,7 +286,7 @@ export default function HeadlineHunter() {
     };
     setDailyProgress(updatedProgress);
     localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(updatedProgress));
-  }, [currentRoundNumber, dailyProgress]);
+  }, [currentRoundNumber, dailyProgress, isReplaying]);
 
   const handleGuess = (articleId) => {
     if (gameState !== "playing") return;
@@ -419,6 +438,17 @@ export default function HeadlineHunter() {
       </div>
 
       <div className="max-w-2xl mx-auto space-y-6">
+        {isReplaying && gameState !== "daily-complete" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <p className="text-amber-800 font-semibold text-sm">
+              Replay Mode — Same puzzles from earlier today
+            </p>
+            <p className="text-amber-600 text-xs mt-1">
+              New rounds available tomorrow at midnight
+            </p>
+          </div>
+        )}
+
         {gameState === "daily-complete" ? (
           <div className="bg-white border border-slate-200 p-8 rounded-xl text-center shadow-sm space-y-4">
             <h2 className="text-2xl font-black text-slate-900">
@@ -434,6 +464,21 @@ export default function HeadlineHunter() {
               </span>
               .
             </div>
+            <div className="pt-4 border-t border-slate-100 space-y-3">
+              <button
+                onClick={() => {
+                  startReplay();
+                  setTimeout(() => setupRound(), 0);
+                }}
+                className="w-full px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition shadow-lg"
+              >
+                Replay Today&apos;s Rounds
+              </button>
+              <p className="text-xs text-slate-500">
+                Same puzzles, same fun. Come back tomorrow for fresh content!
+              </p>
+            </div>
+            <EmailSignup gameName="Headline Hunter" />
           </div>
         ) : (
           <>
@@ -474,13 +519,36 @@ export default function HeadlineHunter() {
                   >
                     Read Story <ExternalLink size={16} />
                   </a>
-                  {roundsLeft > 0 ? (
+                  {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
-                      onClick={() => setupRound()}
+                      onClick={() => {
+                        if (isReplaying) {
+                          setCurrentRoundNumber((prev) => prev + 1);
+                          roundCompletedRef.current = false;
+                          setTimeout(() => setupRound(), 0);
+                        } else {
+                          setupRound();
+                        }
+                      }}
                       className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
                     >
                       Next Round <ArrowRight size={16} />
                     </button>
+                  ) : isReplaying ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
+                        Replay complete! Come back tomorrow for new rounds.
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsReplaying(false);
+                          setGameState("daily-complete");
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+                      >
+                        Back to summary
+                      </button>
+                    </div>
                   ) : (
                     <div className="rounded-lg bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-600">
                       You&apos;re done for today. Next round in{" "}
