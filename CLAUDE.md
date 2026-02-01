@@ -16,6 +16,15 @@ collegian-games/
 
 Each game is **completely independent** with its own dependencies, build config, and deployment. There is no shared package manager (no workspaces, Lerna, etc.).
 
+## IMPORTANT: Repository Conventions
+
+**This is a private repository.** The following conventions MUST be followed:
+
+- **`.env` files ARE committed to git** - This repo tracks `.env` files since it's private. Do NOT add `.env` to `.gitignore`.
+- **Do NOT create `.env.example` files** - The actual `.env` files are tracked instead.
+- **Always check existing games for patterns** before making assumptions about how things should be done.
+- **Copy configuration from existing games** (like `collegian-headlinehunter`) to maintain consistency.
+
 ## Tech Stack (All Games)
 
 | Category | Technology |
