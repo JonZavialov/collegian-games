@@ -7,48 +7,156 @@ import {
   X,
   Check,
   Info,
-  RotateCcw,
   User,
+  Clock,
 } from "lucide-react";
 import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 import EmailSignup from "./components/EmailSignup";
 
+// CONFIGURATION
 const API_ENDPOINT = "/.netlify/functions/cfb-stats";
-const STORAGE_KEY = "overunder_progress";
+const DAILY_LIMIT = 5;
+const DAILY_STORAGE_KEY = "overunder_daily_progress";
 const TUTORIAL_KEY = "overunder_tutorial_dismissed";
-const HIGH_SCORE_KEY = "overunder_high_score";
 
 // Placeholder image for when ESPN headshot fails
-const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect fill='%23374151' width='200' height='200'/%3E%3Ccircle cx='100' cy='70' r='40' fill='%236B7280'/%3E%3Cellipse cx='100' cy='170' rx='60' ry='50' fill='%236B7280'/%3E%3C/svg%3E";
+const PLACEHOLDER_IMAGE =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect fill='%23374151' width='200' height='200'/%3E%3Ccircle cx='100' cy='70' r='40' fill='%236B7280'/%3E%3Cellipse cx='100' cy='170' rx='60' ry='50' fill='%236B7280'/%3E%3C/svg%3E";
+
+// Date utilities
+const getTodayKey = () => new Date().toISOString().slice(0, 10);
+
+const getTimeUntilReset = () => {
+  const now = new Date();
+  const nextReset = new Date(now);
+  nextReset.setHours(24, 0, 0, 0);
+  const diffMs = Math.max(nextReset - now, 0);
+  const totalMinutes = Math.ceil(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return { hours, minutes };
+};
+
+const formatCountdown = ({ hours, minutes }) =>
+  `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+// Seeded random for deterministic daily puzzles
+const createSeededRandom = (seed) => {
+  let value = seed % 2147483647;
+  if (value <= 0) value += 2147483646;
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return value / 2147483647;
+  };
+};
+
+const seededShuffle = (items, seed) => {
+  const random = createSeededRandom(seed);
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
+
+// Generate deterministic daily rounds
+// Each round is a pair of cards from the same category
+const getDailyRounds = (cards, dateKey) => {
+  const seed = Number(dateKey.replace(/-/g, ""));
+  const random = createSeededRandom(seed);
+
+  // Group cards by category
+  const byCategory = {};
+  for (const card of cards) {
+    if (!byCategory[card.category]) {
+      byCategory[card.category] = [];
+    }
+    byCategory[card.category].push(card);
+  }
+
+  // Get categories with at least 2 cards
+  const validCategories = Object.keys(byCategory).filter(
+    (cat) => byCategory[cat].length >= 2
+  );
+
+  if (validCategories.length === 0) return [];
+
+  // Shuffle categories
+  const shuffledCategories = seededShuffle(validCategories, seed);
+
+  // Generate rounds - each round picks a category and two players
+  const rounds = [];
+  const usedCardIds = new Set();
+
+  for (let i = 0; i < DAILY_LIMIT; i++) {
+    // Pick category (cycle through if needed)
+    const category = shuffledCategories[i % shuffledCategories.length];
+    const categoryCards = byCategory[category].filter(
+      (c) => !usedCardIds.has(c.id)
+    );
+
+    if (categoryCards.length < 2) {
+      // Try to find another category with enough cards
+      let found = false;
+      for (const altCategory of shuffledCategories) {
+        const altCards = byCategory[altCategory].filter(
+          (c) => !usedCardIds.has(c.id)
+        );
+        if (altCards.length >= 2) {
+          const shuffled = seededShuffle(altCards, seed + i);
+          const left = shuffled[0];
+          const right = shuffled[1];
+          usedCardIds.add(left.id);
+          usedCardIds.add(right.id);
+          rounds.push({ left, right, category: altCategory });
+          found = true;
+          break;
+        }
+      }
+      if (!found) break; // Can't generate more rounds
+    } else {
+      // Shuffle and pick two cards
+      const shuffled = seededShuffle(categoryCards, seed + i);
+      const left = shuffled[0];
+      const right = shuffled[1];
+      usedCardIds.add(left.id);
+      usedCardIds.add(right.id);
+      rounds.push({ left, right, category });
+    }
+  }
+
+  return rounds;
+};
 
 export default function OverUnder() {
   const [cards, setCards] = useState([]);
+  const [season, setSeason] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [gameState, setGameState] = useState("loading"); // loading, playing, correct, wrong, lost
-  const [leftCard, setLeftCard] = useState(null);
-  const [rightCard, setRightCard] = useState(null);
+  const [gameState, setGameState] = useState("loading"); // loading, playing, won, lost, daily-complete
+  const [dailyRounds, setDailyRounds] = useState([]);
+  const [roundIndex, setRoundIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(0);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
-  const [showResult, setShowResult] = useState(null); // 'correct' | 'wrong' | null
+  const [showResult, setShowResult] = useState(null);
   const [revealedValue, setRevealedValue] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
+  const [countdown, setCountdown] = useState(getTimeUntilReset());
 
-  const usedCardsRef = useRef(new Set());
-  const roundRef = useRef(0);
-  const analytics = useGameAnalytics("over-under", roundRef.current);
+  const roundCompletedRef = useRef(false);
+  const analytics = useGameAnalytics("over-under", roundIndex);
 
-  // Load high score from localStorage
+  // Update countdown timer
   useEffect(() => {
-    const saved = localStorage.getItem(HIGH_SCORE_KEY);
-    if (saved) {
-      setHighScore(parseInt(saved, 10) || 0);
-    }
+    const interval = setInterval(() => {
+      setCountdown(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   // Check tutorial dismissed
@@ -57,6 +165,33 @@ export default function OverUnder() {
     if (!dismissed) {
       setShowTutorial(true);
     }
+  }, []);
+
+  // Load daily progress from localStorage
+  const loadDailyProgress = useCallback(() => {
+    const saved = localStorage.getItem(DAILY_STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        if (data.date === getTodayKey()) {
+          return data;
+        }
+      } catch {
+        // Invalid data, ignore
+      }
+    }
+    return null;
+  }, []);
+
+  // Save daily progress to localStorage
+  const saveDailyProgress = useCallback((roundIdx, finalScore, completed) => {
+    const data = {
+      date: getTodayKey(),
+      roundIndex: roundIdx,
+      score: finalScore,
+      completed,
+    };
+    localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(data));
   }, []);
 
   // Fetch player data
@@ -73,8 +208,32 @@ export default function OverUnder() {
         }
 
         setCards(data.cards);
+        setSeason(data.season);
+
+        // Generate daily rounds
+        const todayKey = getTodayKey();
+        const rounds = getDailyRounds(data.cards, todayKey);
+        setDailyRounds(rounds);
+
+        // Check for saved progress
+        const savedProgress = loadDailyProgress();
+        if (savedProgress) {
+          if (savedProgress.completed) {
+            setGameState("daily-complete");
+            setScore(savedProgress.score);
+            setRoundIndex(savedProgress.roundIndex);
+          } else {
+            // Resume from saved round
+            setRoundIndex(savedProgress.roundIndex);
+            setScore(savedProgress.score);
+            setGameState("playing");
+          }
+        } else {
+          setGameState("playing");
+        }
+
         setLoading(false);
-        initGame(data.cards);
+        analytics.logStart({ total_rounds: rounds.length, season: data.season }, 0);
       } catch (err) {
         console.error("Failed to fetch data:", err);
         setError(err.message);
@@ -83,68 +242,15 @@ export default function OverUnder() {
     };
 
     fetchData();
-  }, []);
+  }, [loadDailyProgress, analytics]);
 
-  // Get a random card, optionally filtered by category
-  const getRandomCard = useCallback((cardList, exclude = new Set(), category = null) => {
-    let available = cardList.filter((c) => !exclude.has(c.id));
-    if (category) {
-      available = available.filter((c) => c.category === category);
-    }
-    if (available.length === 0) return null;
-    return available[Math.floor(Math.random() * available.length)];
-  }, []);
-
-  // Get categories that have at least 2 unused players
-  const getAvailableCategories = useCallback((cardList, exclude = new Set()) => {
-    const categoryCounts = {};
-    for (const card of cardList) {
-      if (!exclude.has(card.id)) {
-        categoryCounts[card.category] = (categoryCounts[card.category] || 0) + 1;
-      }
-    }
-    return Object.keys(categoryCounts).filter((cat) => categoryCounts[cat] >= 2);
-  }, []);
-
-  const initGame = useCallback(
-    (cardList = cards) => {
-      usedCardsRef.current = new Set();
-      roundRef.current = 0;
-
-      // Get categories with at least 2 players
-      const availableCategories = getAvailableCategories(cardList, usedCardsRef.current);
-      if (availableCategories.length === 0) {
-        setError("Not enough players in any category");
-        return;
-      }
-
-      // Pick a random category
-      const category = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-
-      const first = getRandomCard(cardList, usedCardsRef.current, category);
-      if (!first) return;
-      usedCardsRef.current.add(first.id);
-
-      const second = getRandomCard(cardList, usedCardsRef.current, category);
-      if (!second) return;
-      usedCardsRef.current.add(second.id);
-
-      setLeftCard(first);
-      setRightCard(second);
-      setScore(0);
-      setGameState("playing");
-      setShowResult(null);
-      setRevealedValue(null);
-      setImageErrors({});
-
-      analytics.logStart({ total_cards: cardList.length, category }, 0);
-    },
-    [cards, getRandomCard, getAvailableCategories, analytics]
-  );
+  const currentRound = dailyRounds[roundIndex];
+  const leftCard = currentRound?.left;
+  const rightCard = currentRound?.right;
 
   const handleGuess = useCallback(
     (guess) => {
-      if (gameState !== "playing" || isAnimating) return;
+      if (gameState !== "playing" || isAnimating || !currentRound) return;
 
       setIsAnimating(true);
       const leftValue = leftCard.value;
@@ -163,58 +269,38 @@ export default function OverUnder() {
 
       analytics.logAction("guess", {
         guess,
+        left_player: leftCard.name,
+        right_player: rightCard.name,
         left_value: leftValue,
         right_value: rightValue,
-        left_category: leftCard.category,
-        right_category: rightCard.category,
+        category: currentRound.category,
         correct: isCorrect,
+        round: roundIndex + 1,
       });
 
       if (isCorrect) {
         setShowResult("correct");
         const newScore = score + 1;
         setScore(newScore);
-        roundRef.current += 1;
-
-        // Update high score
-        if (newScore > highScore) {
-          setHighScore(newScore);
-          localStorage.setItem(HIGH_SCORE_KEY, newScore.toString());
-        }
 
         // Transition to next round after delay
         setTimeout(() => {
-          // Try to get next card in same category
-          let nextCard = getRandomCard(cards, usedCardsRef.current, rightCard.category);
+          const nextRoundIndex = roundIndex + 1;
 
-          // If no more cards in this category, pick a new category
-          if (!nextCard) {
-            const availableCategories = getAvailableCategories(cards, usedCardsRef.current);
-            if (availableCategories.length === 0) {
-              // No more valid categories - player wins!
-              setGameState("won");
-              analytics.logWin({ final_score: newScore });
-              setIsAnimating(false);
-              return;
+          if (nextRoundIndex >= dailyRounds.length) {
+            // Completed all rounds - daily complete!
+            setGameState("daily-complete");
+            saveDailyProgress(nextRoundIndex, newScore, true);
+            if (!roundCompletedRef.current) {
+              roundCompletedRef.current = true;
+              analytics.logWin({ final_score: newScore, rounds_completed: nextRoundIndex });
             }
-            // Pick new category and get a card from it
-            const newCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-            nextCard = getRandomCard(cards, usedCardsRef.current, newCategory);
+          } else {
+            // Move to next round
+            setRoundIndex(nextRoundIndex);
+            saveDailyProgress(nextRoundIndex, newScore, false);
           }
 
-          if (!nextCard) {
-            // Truly no more cards
-            setGameState("won");
-            analytics.logWin({ final_score: newScore });
-            setIsAnimating(false);
-            return;
-          }
-
-          usedCardsRef.current.add(nextCard.id);
-
-          // Slide animation: right becomes left, new card on right
-          setLeftCard(rightCard);
-          setRightCard(nextCard);
           setShowResult(null);
           setRevealedValue(null);
           setIsAnimating(false);
@@ -222,9 +308,11 @@ export default function OverUnder() {
       } else {
         setShowResult("wrong");
         setGameState("lost");
+        saveDailyProgress(roundIndex, score, true);
         analytics.logLoss({
           final_score: score,
           guess,
+          round: roundIndex + 1,
           left_value: leftValue,
           right_value: rightValue,
         });
@@ -237,20 +325,16 @@ export default function OverUnder() {
     [
       gameState,
       isAnimating,
+      currentRound,
       leftCard,
       rightCard,
       score,
-      highScore,
-      cards,
-      getRandomCard,
-      getAvailableCategories,
+      roundIndex,
+      dailyRounds.length,
+      saveDailyProgress,
       analytics,
     ]
   );
-
-  const handlePlayAgain = () => {
-    initGame();
-  };
 
   const openTutorial = () => {
     setDontShowAgain(false);
@@ -308,23 +392,33 @@ export default function OverUnder() {
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
                   1
                 </span>
-                <span>Look at the left player and their stat.</span>
+                <span>
+                  Two players are shown with the same stat category.
+                </span>
               </li>
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
                   2
                 </span>
                 <span>
-                  Guess if the right player has a HIGHER or LOWER stat.
+                  Guess if the right player has a HIGHER or LOWER value.
                 </span>
               </li>
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
                   3
                 </span>
-                <span>Build your streak! One wrong guess ends the game.</span>
+                <span>
+                  Complete all {DAILY_LIMIT} rounds to win! One wrong guess ends the game.
+                </span>
               </li>
             </ol>
+          </div>
+
+          <div className="mt-4 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+            <p className="text-xs text-blue-300">
+              <strong>Daily Challenge:</strong> Everyone gets the same {DAILY_LIMIT} matchups each day. Come back tomorrow for new rounds!
+            </p>
           </div>
 
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-700 pt-4">
@@ -382,13 +476,7 @@ export default function OverUnder() {
   }
 
   // Player Card Component
-  const PlayerCard = ({
-    card,
-    side,
-    showValue,
-    result,
-    revealed,
-  }) => {
+  const PlayerCard = ({ card, side, showValue, result, revealed }) => {
     const isLeft = side === "left";
     const bgClass = isLeft ? "bg-blue-900" : "bg-slate-800";
     const valueToShow = revealed !== null ? revealed : card.value;
@@ -410,9 +498,7 @@ export default function OverUnder() {
         {result && (
           <div
             className={`absolute inset-0 flex items-center justify-center z-20 ${
-              result === "correct"
-                ? "bg-green-500/30"
-                : "bg-red-500/30"
+              result === "correct" ? "bg-green-500/30" : "bg-red-500/30"
             } animate-pulse`}
           >
             {result === "correct" ? (
@@ -455,30 +541,92 @@ export default function OverUnder() {
           {showValue || revealed !== null ? (
             <div
               className={`text-4xl sm:text-6xl font-black transition-all duration-500 ${
-                revealed !== null
-                  ? "animate-reveal text-yellow-400"
-                  : "text-white"
+                revealed !== null ? "animate-reveal text-yellow-400" : "text-white"
               }`}
             >
               {valueToShow.toLocaleString()}
             </div>
           ) : (
-            <div className="text-4xl sm:text-6xl font-black text-slate-500">
-              ?
-            </div>
+            <div className="text-4xl sm:text-6xl font-black text-slate-500">?</div>
           )}
         </div>
       </div>
     );
   };
 
+  // Daily Complete State
+  const dailyCompleteScreen = (
+    <div className="flex-1 flex items-center justify-center p-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
+        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-blue-900/50 flex items-center justify-center">
+          <Clock className="text-blue-400" size={40} />
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
+          {score === DAILY_LIMIT ? "Perfect Score!" : "Daily Complete"}
+        </h2>
+        <p className="text-slate-400 mb-4">
+          {score === DAILY_LIMIT
+            ? `You got all ${DAILY_LIMIT} correct! Amazing knowledge of Penn State football!`
+            : `You scored ${score}/${DAILY_LIMIT} today. Come back tomorrow for new matchups!`}
+        </p>
+        <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
+          <p className="text-slate-400 text-sm">Your Score</p>
+          <p className="text-4xl font-black text-blue-400">
+            {score}/{DAILY_LIMIT}
+          </p>
+        </div>
+        <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
+          <p className="text-slate-400 text-sm">Next challenge in</p>
+          <p className="text-2xl font-black text-white font-mono">
+            {formatCountdown(countdown)}
+          </p>
+        </div>
+        <EmailSignup gameName="Over/Under" />
+      </div>
+    </div>
+  );
+
+  // Game Over (Lost) State
+  const gameOverScreen = (
+    <div className="flex-1 flex items-center justify-center p-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
+        <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-900/50 flex items-center justify-center">
+          <X className="text-red-400" size={40} />
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
+          Game Over!
+        </h2>
+        <p className="text-slate-400 mb-4">
+          {rightCard?.name} had{" "}
+          <span className="text-yellow-400 font-bold">
+            {revealedValue?.toLocaleString()}
+          </span>{" "}
+          {rightCard?.category}
+        </p>
+        <div className="bg-slate-700/50 rounded-xl p-4 mb-4">
+          <p className="text-slate-400 text-sm">Final Score</p>
+          <p className="text-4xl font-black text-white">
+            {score}/{DAILY_LIMIT}
+          </p>
+        </div>
+        <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
+          <p className="text-slate-400 text-sm">Next challenge in</p>
+          <p className="text-2xl font-black text-white font-mono">
+            {formatCountdown(countdown)}
+          </p>
+        </div>
+        <EmailSignup gameName="Over/Under" />
+      </div>
+    </div>
+  );
+
   // Main Game UI
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col font-sans">
       {tutorialModal}
 
-      {/* Confetti on game won */}
-      {gameState === "won" && (
+      {/* Confetti on perfect score */}
+      {gameState === "daily-complete" && score === DAILY_LIMIT && (
         <Confetti recycle={false} numberOfPieces={300} gravity={0.2} />
       )}
 
@@ -490,7 +638,7 @@ export default function OverUnder() {
               Over/Under
             </h1>
             <p className="text-slate-400 text-xs sm:text-sm">
-              Penn State Football Stats Challenge
+              Penn State Football • {season ? `${season} Season` : "Loading..."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -502,15 +650,8 @@ export default function OverUnder() {
               <Info size={16} />
               <span className="hidden sm:inline">How to play</span>
             </button>
-            <button
-              type="button"
-              onClick={() => analytics.logFeedback()}
-              className="bg-slate-700 px-3 py-2 rounded-full shadow-sm font-bold text-slate-300 border border-slate-600 flex items-center gap-2 hover:border-blue-400 hover:text-white transition text-sm"
-            >
-              Feedback
-            </button>
             <div className="bg-slate-700 px-3 py-2 rounded-full shadow-sm font-bold text-slate-400 border border-slate-600 flex items-center gap-2 text-sm">
-              Best: {highScore}
+              Round {Math.min(roundIndex + 1, DAILY_LIMIT)}/{DAILY_LIMIT}
             </div>
             <div className="bg-blue-600 px-4 py-2 rounded-full shadow-lg font-bold text-white border border-blue-500 flex items-center gap-2">
               <Trophy size={18} /> {score}
@@ -520,66 +661,10 @@ export default function OverUnder() {
       </header>
 
       {/* Game Area */}
-      {gameState === "lost" ? (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-900/50 flex items-center justify-center">
-              <X className="text-red-400" size={40} />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
-              Game Over!
-            </h2>
-            <p className="text-slate-400 mb-4">
-              {rightCard?.name} had{" "}
-              <span className="text-yellow-400 font-bold">
-                {revealedValue?.toLocaleString()}
-              </span>{" "}
-              {rightCard?.category}
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
-              <div className="bg-slate-700/50 rounded-xl p-4">
-                <p className="text-slate-400 text-sm">Final Score</p>
-                <p className="text-3xl font-black text-white">{score}</p>
-              </div>
-              <div className="bg-slate-700/50 rounded-xl p-4">
-                <p className="text-slate-400 text-sm">High Score</p>
-                <p className="text-3xl font-black text-blue-400">{highScore}</p>
-              </div>
-            </div>
-            <button
-              onClick={handlePlayAgain}
-              className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition shadow-lg shadow-blue-900/50 flex items-center gap-2 mx-auto"
-            >
-              <RotateCcw size={20} /> Play Again
-            </button>
-            <EmailSignup gameName="Over/Under" />
-          </div>
-        </div>
-      ) : gameState === "won" ? (
-        <div className="flex-1 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-green-500/50 rounded-2xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-900/50 flex items-center justify-center">
-              <Trophy className="text-yellow-400" size={40} />
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">
-              Amazing!
-            </h2>
-            <p className="text-slate-400 mb-4">
-              You went through all the players! Incredible knowledge!
-            </p>
-            <div className="bg-slate-700/50 rounded-xl p-4 mb-6">
-              <p className="text-slate-400 text-sm">Final Score</p>
-              <p className="text-4xl font-black text-yellow-400">{score}</p>
-            </div>
-            <button
-              onClick={handlePlayAgain}
-              className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition shadow-lg shadow-blue-900/50 flex items-center gap-2 mx-auto"
-            >
-              <RotateCcw size={20} /> Play Again
-            </button>
-            <EmailSignup gameName="Over/Under" />
-          </div>
-        </div>
+      {gameState === "daily-complete" ? (
+        dailyCompleteScreen
+      ) : gameState === "lost" ? (
+        gameOverScreen
       ) : (
         <div className="flex-1 flex flex-col">
           {/* Cards Container */}
