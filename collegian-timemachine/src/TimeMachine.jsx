@@ -182,10 +182,14 @@ export default function TimeMachine() {
   );
   const formattedDate = formatDate(todayKey);
   // Limit devicePixelRatio more aggressively on mobile to reduce memory usage
+  // On mobile, use 1 to significantly reduce canvas memory footprint
   const devicePixelRatio =
     typeof window !== "undefined"
       ? Math.min(window.devicePixelRatio || 1, isMobile ? 1 : 2)
       : 1;
+
+  // Track if we're in a page transition to prevent rendering during cleanup
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     startNewGame();
@@ -261,6 +265,7 @@ export default function TimeMachine() {
     setCurrentRoundNumber(1);
     roundCompletedRef.current = false;
     isProcessingGuessRef.current = false;
+    setIsTransitioning(false);
     analytics.logAction("replay_started", {}, 1);
     // Trigger the game to start again
     setLoading(true);
@@ -285,7 +290,10 @@ export default function TimeMachine() {
 
     const updatePdfWidth = () => {
       const containerWidth = pdfWrapperRef.current?.clientWidth ?? 0;
-      const nextWidth = Math.max(containerWidth - 32, 320);
+      // On mobile, cap the width more aggressively to reduce memory usage
+      // Large canvas elements on mobile Safari can cause crashes
+      const maxWidth = isMobile ? Math.min(containerWidth - 32, 500) : containerWidth - 32;
+      const nextWidth = Math.max(maxWidth, 280);
       setPdfViewportWidth(nextWidth);
     };
 
@@ -296,7 +304,7 @@ export default function TimeMachine() {
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [isMobile]);
 
   const startNewGame = useCallback(() => {
     const todayKey = getTodayKey();
@@ -316,6 +324,7 @@ export default function TimeMachine() {
     setCurrentRoundNumber(nextRoundNumber);
     roundCompletedRef.current = false;
     isProcessingGuessRef.current = false;
+    setIsTransitioning(false);
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
@@ -469,10 +478,25 @@ export default function TimeMachine() {
 
       setTimeout(() => setShake(false), 500);
 
+      // On mobile, explicitly clear the PDF source first to force unmount and memory cleanup
+      // before loading the next page. This prevents Safari from crashing due to memory pressure.
+      if (isMobile) {
+        debugLog("Mobile: clearing PDF source for memory cleanup");
+        setIsTransitioning(true);
+        setPdfSource(null);
+        // Also revoke the object URL immediately on mobile
+        if (pdfObjectUrlRef.current) {
+          URL.revokeObjectURL(pdfObjectUrlRef.current);
+          pdfObjectUrlRef.current = null;
+        }
+      }
+
       // Use longer delay on mobile to allow memory cleanup between page loads
-      const transitionDelay = isMobile ? 1200 : 700;
+      // Mobile Safari needs more time to garbage collect the old PDF canvas
+      const transitionDelay = isMobile ? 2000 : 700;
       setTimeout(() => {
         debugLog("setTimeout fired - incrementing page", { newPage: pageNumber + 1, delay: transitionDelay });
+        setIsTransitioning(false);
         setPageNumber((prev) => prev + 1);
         setLoading(true);
         setFeedbackMsg(null);
@@ -649,7 +673,9 @@ export default function TimeMachine() {
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
     : "#";
-  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError;
+  // On mobile, don't render PDF during page transitions (when feedbackMsg is shown or isTransitioning)
+  // This completely unmounts react-pdf, giving it time to clean up memory
+  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError && !isTransitioning && !(isMobile && feedbackMsg);
   const pageScale = zoomLevel * (isMobile ? 0.6 : 1);
   const documentKey = `${targetDate?.full ?? "no-date"}-${pageNumber}`;
 
