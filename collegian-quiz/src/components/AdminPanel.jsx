@@ -29,12 +29,7 @@ const questionHasIssues = (question) => {
   return false;
 };
 
-export default function AdminPanel({
-  data,
-  onSave,
-  onExit,
-  onRestore,
-}) {
+export default function AdminPanel({ data, onSave, onExit, onRestore }) {
   const [draftData, setDraftData] = useState(() => cloneData(data));
   const [importPayload, setImportPayload] = useState("");
   const [importError, setImportError] = useState("");
@@ -56,7 +51,7 @@ export default function AdminPanel({
 
   const stats = useMemo(() => {
     const questionIssues = draftData.questions.filter((question) =>
-      questionHasIssues(question)
+      questionHasIssues(question),
     );
     return {
       total: draftData.questions.length,
@@ -66,12 +61,14 @@ export default function AdminPanel({
 
   const hasChanges = useMemo(
     () => JSON.stringify(draftData) !== JSON.stringify(data),
-    [draftData, data]
+    [draftData, data],
   );
 
   const refreshSession = async () => {
     try {
-      const response = await fetch(SESSION_ENDPOINT, { credentials: "include" });
+      const response = await fetch(SESSION_ENDPOINT, {
+        credentials: "include",
+      });
       if (!response.ok) {
         setIsAuthenticated(false);
         return;
@@ -264,7 +261,7 @@ export default function AdminPanel({
   const handleRestore = async (versionId, timestampLabel) => {
     setRestoreError("");
     const confirmed = window.confirm(
-      `Restore the quiz to the version saved on ${timestampLabel}?`
+      `Restore the quiz to the version saved on ${timestampLabel}?`,
     );
     if (!confirmed) return;
     setRestoringId(versionId);
@@ -332,8 +329,8 @@ export default function AdminPanel({
             >
               Unlock Admin
             </button>
-            <p className="text-xs text-slate-500">
-              Access is verified server-side and protected by rate limits.
+            <p className="text-xs text-slate-500 mt-2">
+              Contact Jonathan Zavialov for password resets.
             </p>
           </form>
 
@@ -357,9 +354,7 @@ export default function AdminPanel({
             <p className="text-xs font-bold uppercase tracking-[0.35em] text-blue-500">
               Beat the Editor Admin
             </p>
-            <h1 className="text-2xl font-black text-slate-900">
-              Quiz Builder
-            </h1>
+            <h1 className="text-2xl font-black text-slate-900">Quiz Builder</h1>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -421,7 +416,9 @@ export default function AdminPanel({
                 Editor name
                 <input
                   value={draftData.editorName}
-                  onChange={(event) => updateField("editorName", event.target.value)}
+                  onChange={(event) =>
+                    updateField("editorName", event.target.value)
+                  }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   placeholder="The Editor"
                 />
@@ -505,12 +502,14 @@ export default function AdminPanel({
               {versionsError && (
                 <p className="text-sm text-rose-500">{versionsError}</p>
               )}
-              {!isLoadingVersions && !versionsError && versions.length === 0 && (
-                <p className="text-sm text-slate-500">
-                  No saved versions yet. Publish a quiz to start tracking
-                  history.
-                </p>
-              )}
+              {!isLoadingVersions &&
+                !versionsError &&
+                versions.length === 0 && (
+                  <p className="text-sm text-slate-500">
+                    No saved versions yet. Publish a quiz to start tracking
+                    history.
+                  </p>
+                )}
               {versions.map((version) => {
                 const timestamp = new Date(version.versioned_at);
                 const label = timestamp.toLocaleString();
@@ -641,7 +640,11 @@ export default function AdminPanel({
                           <input
                             value={option}
                             onChange={(event) =>
-                              updateOption(index, optionIndex, event.target.value)
+                              updateOption(
+                                index,
+                                optionIndex,
+                                event.target.value,
+                              )
                             }
                             className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                             placeholder={`Option ${optionIndex + 1}`}
@@ -718,7 +721,9 @@ export default function AdminPanel({
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-black text-slate-900">Import & export</h2>
+            <h2 className="text-lg font-black text-slate-900">
+              Import & export
+            </h2>
             <p className="text-sm text-slate-500">
               Move data between devices or keep a versioned backup.
             </p>

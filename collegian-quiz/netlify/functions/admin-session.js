@@ -3,11 +3,8 @@ const crypto = require("crypto");
 
 const SESSION_COOKIE = "quiz_admin_session";
 
+// Use Netlify's trusted IP header (cannot be spoofed by clients)
 const getClientIp = (event) => {
-  const forwarded = event.headers["x-forwarded-for"];
-  if (forwarded) {
-    return forwarded.split(",")[0].trim();
-  }
   return (
     event.headers["x-nf-client-connection-ip"] ||
     event.headers["client-ip"] ||
@@ -70,9 +67,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ authenticated: result.rows.length > 0 }),
     };
   } catch (error) {
+    console.error("Session check error:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: error.message }),
+      body: JSON.stringify({ message: "An error occurred." }),
     };
   } finally {
     await client.end();
