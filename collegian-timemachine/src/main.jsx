@@ -13,6 +13,11 @@ createRoot(document.getElementById("root")).render(
         defaults: "2025-05-24",
         capture_exceptions: true,
         debug: import.meta.env.MODE === "development",
+        session_recording: {
+          recordCanvas: true,
+          canvasFps: 5,
+          canvasQuality: "0.4",
+        },
       }}
     >
       <TimeMachine />
