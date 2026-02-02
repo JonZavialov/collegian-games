@@ -1,6 +1,17 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
 [[redirects]]
 from = "/archive/*"
 to = "https://panewsarchive.psu.edu/:splat"
+status = 200
+force = true
+
+[[redirects]]
+from = "/iiif/*"
+to = "https://panewsarchive.psu.edu/iiif/:splat"
 status = 200
 force = true
 

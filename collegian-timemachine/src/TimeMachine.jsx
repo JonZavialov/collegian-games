@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
 import {
   Loader,
   Trophy,
@@ -15,14 +14,7 @@ import Confetti from "react-confetti";
 import useGameAnalytics from "./hooks/useGameAnalytics";
 import DisclaimerFooter from "./components/DisclaimerFooter";
 import EmailSignup from "./components/EmailSignup";
-import "react-pdf/dist/Page/AnnotationLayer.css";
-import "react-pdf/dist/Page/TextLayer.css";
-
-// ✅ PDF WORKER SETUP
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+import ImageViewer from "./components/ImageViewer";
 
 // CONFIGURATION
 const START_YEAR = 1940;
@@ -92,11 +84,12 @@ export default function TimeMachine() {
   const [pageNumber, setPageNumber] = useState(1);
   const [loading, setLoading] = useState(true);
   const [redactionBoxes, setRedactionBoxes] = useState([]);
+  const [imageDimensions, setImageDimensions] = useState(null);
   const [gameState, setGameState] = useState("playing");
   const [score, setScore] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
   const [archiveError, setArchiveError] = useState(null);
-  const [pdfSource, setPdfSource] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
   const [totalPages, setTotalPages] = useState(null);
   const [isPageCountLoading, setIsPageCountLoading] = useState(false);
 
@@ -104,9 +97,6 @@ export default function TimeMachine() {
   const [guessYear, setGuessYear] = useState(1975);
   const [shake, setShake] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [isMobile, setIsMobile] = useState(false);
-  const [pdfViewportWidth, setPdfViewportWidth] = useState(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [closestGuessDiff, setClosestGuessDiff] = useState(null);
@@ -138,10 +128,6 @@ export default function TimeMachine() {
   const roundCompletedRef = useRef(false);
   const [timeUntilReset, setTimeUntilReset] = useState(getTimeUntilReset);
 
-  const pdfWrapperRef = useRef(null);
-  const pdfObjectUrlRef = useRef(null);
-  const prefetchedPdfUrlsRef = useRef(new Map());
-  const prefetchControllersRef = useRef(new Map());
   const analytics = useGameAnalytics("time-machine", currentRoundNumber);
   const tutorialStorageKey = "time-machine_tutorial_dismissed";
   const maxPageLimit = totalPages
@@ -157,22 +143,10 @@ export default function TimeMachine() {
     0,
   );
   const formattedDate = formatDate(todayKey);
-  const devicePixelRatio =
-    typeof window !== "undefined"
-      ? Math.min(window.devicePixelRatio || 1, 2)
-      : 1;
 
   useEffect(() => {
-    // Optional: Initialize PostHog here if you haven't done it in main.jsx
-    // posthog.init('YOUR_API_KEY', { api_host: 'https://app.posthog.com' });
-
     startNewGame();
-    const updateWidth = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener("resize", updateWidth);
-    setTimeout(updateWidth, 500);
-    return () => window.removeEventListener("resize", updateWidth);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -215,41 +189,20 @@ export default function TimeMachine() {
     setCurrentRoundNumber(1);
     roundCompletedRef.current = false;
     analytics.logAction("replay_started", {}, 1);
-    // Trigger the game to start again
     setLoading(true);
     setGameState("playing");
     setPageNumber(1);
     setRedactionBoxes([]);
+    setImageDimensions(null);
     setRetryCount(0);
     setArchiveError(null);
     setFeedbackMsg(null);
     setTargetDate(getDailyDate(getTodayKey(), 1));
     setGuessYear(1975);
-    setZoomLevel(1);
-    setPdfSource(null);
+    setImageUrl(null);
     setTotalPages(null);
     setClosestGuessDiff(null);
   }, [analytics]);
-
-  useEffect(() => {
-    if (!pdfWrapperRef.current) {
-      return;
-    }
-
-    const updatePdfWidth = () => {
-      const containerWidth = pdfWrapperRef.current?.clientWidth ?? 0;
-      const nextWidth = Math.max(containerWidth - 32, 320);
-      setPdfViewportWidth(nextWidth);
-    };
-
-    updatePdfWidth();
-    const observer = new ResizeObserver(updatePdfWidth);
-    observer.observe(pdfWrapperRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
 
   const startNewGame = useCallback(() => {
     const todayKey = getTodayKey();
@@ -261,7 +214,7 @@ export default function TimeMachine() {
       setGameState("daily-complete");
       setLoading(false);
       setTargetDate(null);
-      setPdfSource(null);
+      setImageUrl(null);
       setTotalPages(null);
       return;
     }
@@ -272,26 +225,16 @@ export default function TimeMachine() {
     setGameState("playing");
     setPageNumber(1);
     setRedactionBoxes([]);
+    setImageDimensions(null);
     setRetryCount(0);
     setArchiveError(null);
     setFeedbackMsg(null);
     setTargetDate(getDailyDate(todayKey, nextRoundNumber));
     setGuessYear(1975);
-    setZoomLevel(1);
-    setPdfSource(null);
+    setImageUrl(null);
     setTotalPages(null);
     setClosestGuessDiff(null);
 
-    prefetchedPdfUrlsRef.current.forEach((url) => {
-      URL.revokeObjectURL(url);
-    });
-    prefetchedPdfUrlsRef.current.clear();
-    prefetchControllersRef.current.forEach((controller) => {
-      controller.abort();
-    });
-    prefetchControllersRef.current.clear();
-
-    // 📊 TRACK: New Game Started
     analytics.logStart({}, nextRoundNumber);
   }, [analytics, dailyProgress]);
 
@@ -301,7 +244,6 @@ export default function TimeMachine() {
     }
     roundCompletedRef.current = true;
 
-    // Don't update localStorage progress during replay
     if (isReplaying) {
       return;
     }
@@ -334,7 +276,6 @@ export default function TimeMachine() {
       setGameState("lost");
       setTotalPages((prevTotal) => prevTotal ?? pageNumber - 1);
 
-      // 📊 TRACK: Game Lost (Ran out of pages)
       analytics.logLoss(
         {
           target_year: targetDate?.year,
@@ -361,7 +302,6 @@ export default function TimeMachine() {
     const diff = Math.abs(targetDate.year - guessYear);
     const isWin = diff <= 2;
 
-    // 📊 TRACK: Guess Submitted
     analytics.logAction(
       "guess_submitted",
       {
@@ -374,13 +314,11 @@ export default function TimeMachine() {
       pageNumber,
     );
 
-    // WIN CONDITION: +/- 2 Years
     if (isWin) {
       setGameState("won");
       setScore(score + 1);
       setFeedbackMsg(null);
 
-      // 📊 TRACK: Win Streak
       analytics.logWin(
         {
           streak: score + 1,
@@ -398,7 +336,6 @@ export default function TimeMachine() {
         setTotalPages((prevTotal) => prevTotal ?? maxPageLimit);
         setFeedbackMsg(null);
 
-        // 📊 TRACK: Game Lost (Ran out of pages)
         analytics.logLoss(
           {
             target_year: targetDate.year,
@@ -410,7 +347,6 @@ export default function TimeMachine() {
         return;
       }
 
-      // WRONG GUESS UX
       setShake(true);
       setFeedbackMsg(
         `Nope! Not ${guessYear}. Loading Page ${pageNumber + 1}...`,
@@ -426,14 +362,25 @@ export default function TimeMachine() {
     }
   };
 
-  const getPdfUrlForPage = useCallback(
-    (page) =>
-      targetDate
-        ? `/archive/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-${page}.pdf`
-        : null,
-    [targetDate],
-  );
+  // Fetch IIIF info for a page
+  const fetchIiifInfo = useCallback(async (date, page) => {
+    try {
+      const response = await fetch(
+        `/.netlify/functions/get-iiif-info?date=${date}&page=${page}`
+      );
 
+      if (!response.ok) {
+        return null;
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching IIIF info:", error);
+      return null;
+    }
+  }, []);
+
+  // Fetch total page count
   useEffect(() => {
     if (!targetDate || gameState !== "playing") {
       return;
@@ -445,29 +392,17 @@ export default function TimeMachine() {
       setTotalPages(null);
 
       const pageExists = async (page) => {
-        const url = getPdfUrlForPage(page);
-        if (!url) {
+        if (!targetDate) return false;
+
+        try {
+          const response = await fetch(
+            `/.netlify/functions/get-iiif-info?date=${targetDate.full}&page=${page}`,
+            { signal: controller.signal }
+          );
+          return response.ok;
+        } catch {
           return false;
         }
-
-        const response = await fetch(url, {
-          method: "HEAD",
-          signal: controller.signal,
-        });
-
-        if (response.status === 404) {
-          return false;
-        }
-
-        if (response.status === 403 || response.status === 429) {
-          throw new Error("Archive busy");
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to probe page ${page}: ${response.status}`);
-        }
-
-        return true;
       };
 
       try {
@@ -519,47 +454,114 @@ export default function TimeMachine() {
     return () => {
       controller.abort();
     };
-  }, [gameState, getPdfUrlForPage, targetDate]);
+  }, [gameState, targetDate]);
 
-  const onPageLoadSuccess = async (page) => {
-    setLoading(false);
-    const boxes = [];
-    const textContent = await page.getTextContent();
-    const targetYearStr = targetDate.year.toString();
-    const viewport = page.getViewport({ scale: 1 });
-    const baseScale = pdfViewportWidth ? pdfViewportWidth / viewport.width : 1;
-    const scaleFactor = baseScale * zoomLevel * (isMobile ? 0.6 : 1);
+  // Fetch redaction data from Netlify function
+  const fetchRedactions = useCallback(async (date, page, year) => {
+    try {
+      const response = await fetch("/.netlify/functions/get-redactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          page,
+          targetYear: year,
+        }),
+      });
 
-    textContent.items.forEach((item) => {
-      if (item.str.includes(targetYearStr)) {
-        const pdfX = item.transform[4];
-        const pdfY = item.transform[5];
-        const itemHeight = item.height || 10;
-        const itemWidth = item.width;
-        const x = pdfX * scaleFactor;
-        const y = (viewport.height - pdfY - itemHeight) * scaleFactor;
-
-        boxes.push({
-          x: x - 4,
-          y: y - 4,
-          w: itemWidth * scaleFactor + 12,
-          h: itemHeight * scaleFactor + 8,
-        });
+      if (!response.ok) {
+        console.warn("Failed to fetch redactions:", response.status);
+        return { redactions: [], pageWidth: 0, pageHeight: 0 };
       }
-    });
-    setRedactionBoxes(boxes);
-  };
 
-  const pdfUrl = getPdfUrlForPage(pageNumber);
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching redactions:", error);
+      return { redactions: [], pageWidth: 0, pageHeight: 0 };
+    }
+  }, []);
+
+  // Handle image load success
+  const handleImageLoad = useCallback(
+    async (dimensions) => {
+      setLoading(false);
+
+      if (targetDate && gameState === "playing") {
+        const redactionData = await fetchRedactions(
+          targetDate.full,
+          pageNumber,
+          targetDate.year,
+        );
+
+        if (redactionData.redactions.length > 0 && redactionData.pageWidth > 0) {
+          setImageDimensions({
+            width: redactionData.pageWidth,
+            height: redactionData.pageHeight,
+          });
+          setRedactionBoxes(redactionData.redactions);
+        } else {
+          setImageDimensions(dimensions);
+          setRedactionBoxes([]);
+        }
+      }
+    },
+    [targetDate, gameState, pageNumber, fetchRedactions],
+  );
+
+  // Handle image load error
+  const handleImageError = useCallback(() => {
+    if (pageNumber === 1) {
+      console.log(`No image found for ${targetDate?.full}. Retrying...`);
+      setTargetDate(
+        getDailyDate(todayKey, currentRoundNumber + retryCount + 1),
+      );
+      setRetryCount((prev) => prev + 1);
+    } else {
+      handleLoadError();
+    }
+  }, [currentRoundNumber, handleLoadError, pageNumber, retryCount, targetDate?.full, todayKey]);
+
+  // Fetch IIIF info and set image URL when target date or page changes
+  useEffect(() => {
+    if (!targetDate || gameState !== "playing") {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadImage = async () => {
+      setLoading(true);
+      setArchiveError(null);
+      setRedactionBoxes([]);
+      setImageDimensions(null);
+      setImageUrl(null);
+
+      const iiifInfo = await fetchIiifInfo(targetDate.full, pageNumber);
+
+      if (controller.signal.aborted) return;
+
+      if (!iiifInfo) {
+        // Page doesn't exist, trigger error handling
+        handleImageError();
+        return;
+      }
+
+      // Set the IIIF info URL for OpenSeadragon
+      setImageUrl(iiifInfo.iiifInfoUrl);
+    };
+
+    loadImage();
+
+    return () => {
+      controller.abort();
+    };
+  }, [targetDate, pageNumber, gameState, fetchIiifInfo, handleImageError]);
 
   const originalLink = targetDate
     ? `https://panewsarchive.psu.edu/lccn/${COLLEGIAN_LCCN}/${targetDate.full}/ed-1/seq-1/`
     : "#";
-  const shouldRenderPdf = pdfSource && gameState === "playing" && !archiveError;
-  const pageScale = zoomLevel * (isMobile ? 0.6 : 1);
-  const documentKey = `${targetDate?.full ?? "no-date"}-${pageNumber}`;
+  const shouldRenderViewer = imageUrl && gameState === "playing" && !archiveError;
 
-  // Helper for tracking external link clicks
   const handleViewFullIssue = () => {
     analytics.logContentClick({
       target_year: targetDate?.year,
@@ -579,146 +581,20 @@ export default function TimeMachine() {
     }
   }, [gameState, markRoundComplete]);
 
-  useEffect(() => {
-    if (!pdfUrl || gameState !== "playing") {
-      return;
-    }
+  // Zoom controls - use the ImageViewer ref methods directly
+  const imageViewerRef = useRef(null);
 
-    const controller = new AbortController();
-    const fetchPdf = async () => {
-      if (prefetchedPdfUrlsRef.current.has(pageNumber)) {
-        const cachedUrl = prefetchedPdfUrlsRef.current.get(pageNumber);
-        prefetchedPdfUrlsRef.current.delete(pageNumber);
-        if (pdfObjectUrlRef.current) {
-          URL.revokeObjectURL(pdfObjectUrlRef.current);
-        }
-        pdfObjectUrlRef.current = cachedUrl;
-        setPdfSource(cachedUrl);
-        setLoading(false);
-        return;
-      }
+  const handleZoomIn = () => {
+    imageViewerRef.current?.zoomIn();
+  };
 
-      setLoading(true);
-      setArchiveError(null);
-      setPdfSource(null);
+  const handleZoomOut = () => {
+    imageViewerRef.current?.zoomOut();
+  };
 
-      if (pdfObjectUrlRef.current) {
-        URL.revokeObjectURL(pdfObjectUrlRef.current);
-        pdfObjectUrlRef.current = null;
-      }
-
-      try {
-        const response = await fetch(pdfUrl, { signal: controller.signal });
-
-        if (response.status === 403 || response.status === 429) {
-          setArchiveError(
-            "The Archives are currently experiencing high traffic. Please try again later.",
-          );
-          setLoading(false);
-          return;
-        }
-
-        if (response.status === 404) {
-          handleLoadError();
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch PDF: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        pdfObjectUrlRef.current = objectUrl;
-        setPdfSource(objectUrl);
-        setLoading(false);
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        console.error("Failed to fetch PDF:", error);
-        setArchiveError(
-          "We couldn't load this issue right now. Please try again.",
-        );
-        setLoading(false);
-      }
-    };
-
-    fetchPdf();
-
-    return () => {
-      controller.abort();
-      if (pdfObjectUrlRef.current) {
-        URL.revokeObjectURL(pdfObjectUrlRef.current);
-        pdfObjectUrlRef.current = null;
-      }
-    };
-  }, [gameState, handleLoadError, pdfUrl]);
-
-  useEffect(() => {
-    if (!targetDate || gameState !== "playing") {
-      return;
-    }
-
-    const nextPage = pageNumber + 1;
-    if (prefetchedPdfUrlsRef.current.has(nextPage)) {
-      return;
-    }
-    if (prefetchControllersRef.current.has(nextPage)) {
-      return;
-    }
-
-    const controller = new AbortController();
-    prefetchControllersRef.current.set(nextPage, controller);
-
-    const prefetchNextPage = async () => {
-      const url = getPdfUrlForPage(nextPage);
-      if (!url) {
-        return;
-      }
-
-      try {
-        const response = await fetch(url, {
-          signal: controller.signal,
-        });
-
-        if (response.status === 404) {
-          setTotalPages((prevTotal) => prevTotal ?? pageNumber);
-          return;
-        }
-
-        if (!response.ok) {
-          return;
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        prefetchedPdfUrlsRef.current.set(nextPage, objectUrl);
-
-        if (prefetchedPdfUrlsRef.current.size > 2) {
-          const [oldestPage, oldestUrl] = prefetchedPdfUrlsRef.current
-            .entries()
-            .next().value;
-          prefetchedPdfUrlsRef.current.delete(oldestPage);
-          URL.revokeObjectURL(oldestUrl);
-        }
-      } catch (error) {
-        if (controller.signal.aborted) {
-          return;
-        }
-        console.error("Failed to prefetch page:", error);
-      } finally {
-        prefetchControllersRef.current.delete(nextPage);
-      }
-    };
-
-    prefetchNextPage();
-
-    return () => {
-      controller.abort();
-      prefetchControllersRef.current.delete(nextPage);
-    };
-  }, [gameState, getPdfUrlForPage, pageNumber, targetDate]);
+  const handleZoomReset = () => {
+    imageViewerRef.current?.resetZoom();
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 p-4 font-sans text-slate-900">
@@ -807,7 +683,7 @@ export default function TimeMachine() {
         }
         .shake-element {
           animation: shake 0.4s ease-in-out;
-          border-color: #ef4444 !important; /* Red border */
+          border-color: #ef4444 !important;
         }
       `}</style>
 
@@ -931,7 +807,7 @@ export default function TimeMachine() {
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
@@ -999,7 +875,7 @@ export default function TimeMachine() {
                   href={originalLink}
                   target="_blank"
                   rel="noreferrer"
-                  onClick={handleViewFullIssue} // 📊 TRACK CLICK
+                  onClick={handleViewFullIssue}
                   className="flex items-center justify-center gap-2 text-blue-600 font-bold hover:underline text-sm mb-2"
                 >
                   View Full Issue <ExternalLink size={14} />
@@ -1112,40 +988,34 @@ export default function TimeMachine() {
           </div>
         </div>
 
-        {/* PDF VIEWER */}
-        <div
-          className="md:col-span-8 min-h-[300px] md:min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden"
-          ref={pdfWrapperRef}
-        >
+        {/* IMAGE VIEWER */}
+        <div className="md:col-span-8 min-h-[300px] md:min-h-[600px] bg-slate-300 rounded-xl border border-slate-300 relative overflow-hidden">
           <div className="absolute left-1/2 top-4 z-40 -translate-x-1/2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-700 shadow-md">
             <div className="flex items-center gap-3">
               <span className="font-bold text-slate-800">Zoom</span>
               <button
                 type="button"
-                onClick={() => setZoomLevel((prev) => Math.max(1, prev - 0.25))}
+                onClick={handleZoomOut}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
-                -
+                −
               </button>
-              <span className="min-w-[3.5rem] text-center tabular-nums">
-                {Math.round(zoomLevel * 100)}%
-              </span>
               <button
                 type="button"
-                onClick={() => setZoomLevel((prev) => Math.min(3, prev + 0.25))}
+                onClick={handleZoomIn}
                 className="h-8 w-8 rounded-full border border-slate-200 text-base font-bold text-slate-700 hover:bg-slate-100"
               >
                 +
               </button>
               <button
                 type="button"
-                onClick={() => setZoomLevel(1)}
+                onClick={handleZoomReset}
                 className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
               >
                 Reset
               </button>
               <span className="hidden text-xs text-slate-500 md:inline">
-                Scroll to pan while zoomed
+                Pinch/scroll to zoom, drag to pan
               </span>
             </div>
           </div>
@@ -1160,56 +1030,20 @@ export default function TimeMachine() {
             </div>
           )}
 
-          {shouldRenderPdf && (
-            <div
-              className={`relative bg-white min-h-[400px] md:min-h-[800px] shadow-2xl ${
-                zoomLevel === 1
-                  ? "overflow-y-auto overflow-x-hidden"
-                  : "overflow-auto"
-              }`}
-            >
-              <div className="relative mx-auto w-fit">
-                <Document
-                  key={documentKey}
-                  file={pdfSource}
-                  onLoadError={handleLoadError}
-                  className="flex justify-center"
-                  loading={null}
-                >
-                  <Page
-                    pageNumber={1}
-                    scale={pageScale}
-                    width={pdfViewportWidth ?? undefined}
-                    onLoadSuccess={onPageLoadSuccess}
-                    devicePixelRatio={devicePixelRatio}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={false}
-                    renderMode="svg"
-                    className="shadow-xl"
-                  />
-                </Document>
-
-                {redactionBoxes.map((box, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      position: "absolute",
-                      left: box.x,
-                      top: box.y,
-                      width: box.w,
-                      height: box.h,
-                      backgroundColor: "#1a1a1a",
-                      zIndex: 20,
-                      pointerEvents: "none",
-                      borderRadius: "2px",
-                    }}
-                  />
-                ))}
-              </div>
+          {shouldRenderViewer && (
+            <div className="absolute inset-0">
+              <ImageViewer
+                ref={imageViewerRef}
+                iiifInfoUrl={imageUrl}
+                redactionBoxes={redactionBoxes}
+                imageDimensions={imageDimensions}
+                onImageLoad={handleImageLoad}
+                onImageError={handleImageError}
+              />
             </div>
           )}
 
-          {!shouldRenderPdf && (
+          {!shouldRenderViewer && (
             <div className="flex h-full min-h-[600px] items-center justify-center bg-white/80 text-center text-sm text-slate-500">
               <div className="max-w-sm space-y-2 px-6 py-8">
                 <p className="text-base font-semibold text-slate-700">
@@ -1217,7 +1051,7 @@ export default function TimeMachine() {
                     ? "Archives are temporarily unavailable."
                     : gameState === "lost"
                       ? "No more pages available for this issue."
-                      : "PDF is hidden while you review results."}
+                      : "Image is hidden while you review results."}
                 </p>
                 <p>
                   {archiveError

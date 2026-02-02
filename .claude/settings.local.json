@@ -6,7 +6,15 @@
       "Bash(git reset:*)",
       "Bash(git restore:*)",
       "Bash(git commit:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:panewsarchive.psu.edu)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run dev:*)",
+      "Bash(timeout:*)",
+      "Bash(curl:*)",
+      "Bash(node -e:*)"
     ]
   }
 }
