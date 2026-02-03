@@ -624,7 +624,7 @@ import { Loader } from "lucide-react";
 ```bash
 cd collegian-[game-name]
 npm install
-npm run dev      # Start dev server at localhost:5173
+netlify dev      # Start dev server with Netlify Functions support
 ```
 
 ### Build & Preview

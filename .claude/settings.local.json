@@ -12,6 +12,7 @@
       "Bash(npm run build:*)",
       "Bash(npm run lint:*)",
       "Bash(npm run dev:*)",
+      "Bash(netlify dev:*)",
       "Bash(timeout:*)",
       "Bash(curl:*)",
       "Bash(node -e:*)"

@@ -33,7 +33,7 @@ All games share the same client-side stack:
 ```bash
 cd <game-folder>
 npm install
-npm run dev
+netlify dev
 ```
 
 Production build (per game):

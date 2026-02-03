@@ -69,7 +69,7 @@ VITE_PUBLIC_POSTHOG_HOST
 
 ```bash
 npm install
-npm run dev
+netlify dev
 ```
 
 Build:
