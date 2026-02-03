@@ -960,16 +960,23 @@ export default function Redacted() {
                   </a>
                   {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
+                      disabled={gameState !== "won"}
                       onClick={() => {
+                        // Prevent double-clicks
+                        if (gameState !== "won") return;
+                        // Clear state immediately to prevent stale content
+                        setCurrentArticle(null);
+                        setWords([]);
                         if (isReplaying) {
                           setCurrentRoundNumber((prev) => prev + 1);
                           roundCompletedRef.current = false;
+                          // setTimeout needed so setupRound sees updated currentRoundNumber
                           setTimeout(() => setupRound(), 0);
                         } else {
                           setupRound();
                         }
                       }}
-                      className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg"
+                      className="px-5 py-2.5 bg-slate-900 text-white rounded-lg font-bold hover:bg-black flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
                     >
                       Next Story <ArrowRight size={16} />
                     </button>
@@ -1022,17 +1029,24 @@ export default function Redacted() {
                   </a>
                   {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
+                      disabled={gameState !== "lost"}
                       onClick={() => {
+                        // Prevent double-clicks
+                        if (gameState !== "lost") return;
+                        // Clear state immediately to prevent stale content
+                        setCurrentArticle(null);
+                        setWords([]);
                         if (isReplaying) {
                           setCurrentRoundNumber((prev) => prev + 1);
                           roundCompletedRef.current = false;
+                          // setTimeout needed so setupRound sees updated currentRoundNumber
                           setTimeout(() => setupRound(), 0);
                         } else {
                           setScore(0);
                           setupRound();
                         }
                       }}
-                      className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg"
+                      className="px-8 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black shadow-lg disabled:opacity-50"
                     >
                       Next Story
                     </button>

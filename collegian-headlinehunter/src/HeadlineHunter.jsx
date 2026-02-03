@@ -521,16 +521,23 @@ export default function HeadlineHunter() {
                   </a>
                   {(isReplaying && currentRoundNumber < DAILY_LIMIT) || roundsLeft > 0 ? (
                     <button
+                      disabled={gameState !== "won"}
                       onClick={() => {
+                        // Prevent double-clicks
+                        if (gameState !== "won") return;
+                        // Clear state immediately to prevent stale options
+                        setRound(null);
+                        setWrongGuesses([]);
                         if (isReplaying) {
                           setCurrentRoundNumber((prev) => prev + 1);
                           roundCompletedRef.current = false;
+                          // setTimeout needed so setupRound sees updated currentRoundNumber
                           setTimeout(() => setupRound(), 0);
                         } else {
                           setupRound();
                         }
                       }}
-                      className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2"
+                      className="px-6 py-3 bg-slate-900 text-white rounded-lg font-bold hover:bg-black transition shadow-lg flex items-center gap-2 disabled:opacity-50"
                     >
                       Next Round <ArrowRight size={16} />
                     </button>
