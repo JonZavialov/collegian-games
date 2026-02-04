@@ -57,7 +57,10 @@ const createSeededRandom = (seed) => {
 };
 
 const getDailyDate = (dateKey, roundNumber = 1) => {
-  const seed = Number(dateKey.replace(/-/g, "")) + roundNumber * 31;
+  // Parse date components for better seed distribution
+  const [year, month, day] = dateKey.split("-").map(Number);
+  // Combine with different multipliers to spread seeds apart
+  const seed = year * 1000003 + month * 100003 + day * 10007 + roundNumber * 31337;
   const random = createSeededRandom(seed);
   const start = new Date(`${START_YEAR}-09-05T00:00:00Z`);
   const end = new Date(`${END_YEAR}-12-10T00:00:00Z`);
