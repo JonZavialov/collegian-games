@@ -154,8 +154,10 @@ export default function TimeMachine() {
       const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
       setDailyProgress(refreshed);
       localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
+      setIsReplaying(false);
+      startNewGame();
     }
-  }, [dailyProgress.dateKey, todayKey]);
+  }, [dailyProgress.dateKey, todayKey, startNewGame]);
 
   useEffect(() => {
     const interval = setInterval(() => {
