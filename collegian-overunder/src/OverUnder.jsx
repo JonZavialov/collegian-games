@@ -73,7 +73,9 @@ const seededShuffle = (items, seed) => {
 // Generate deterministic daily rounds
 // Each round is a pair of cards from the same category
 const getDailyRounds = (cards, dateKey) => {
-  const seed = Number(dateKey.replace(/-/g, ""));
+  // Parse date components for better seed distribution
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const seed = year * 1000003 + month * 100003 + day * 10007;
   const random = createSeededRandom(seed);
 
   // Group cards by category
