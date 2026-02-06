@@ -147,47 +147,6 @@ export default function TimeMachine() {
   );
   const formattedDate = formatDate(todayKey);
 
-  useEffect(() => {
-    startNewGame();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (dailyProgress.dateKey !== todayKey) {
-      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
-      setDailyProgress(refreshed);
-      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
-      setIsReplaying(false);
-      startNewGame();
-    }
-  }, [dailyProgress.dateKey, todayKey, startNewGame]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeUntilReset(getTimeUntilReset());
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
-    if (!dismissed) {
-      setShowTutorial(true);
-    }
-  }, [tutorialStorageKey]);
-
-  const openTutorial = () => {
-    setDontShowAgain(false);
-    setShowTutorial(true);
-  };
-
-  const closeTutorial = () => {
-    if (dontShowAgain) {
-      localStorage.setItem(tutorialStorageKey, "true");
-    }
-    setShowTutorial(false);
-  };
-
   const startReplay = useCallback(() => {
     setIsReplaying(true);
     setScore(0);
@@ -242,6 +201,47 @@ export default function TimeMachine() {
 
     analytics.logStart({}, nextRoundNumber);
   }, [analytics, dailyProgress]);
+
+  useEffect(() => {
+    startNewGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (dailyProgress.dateKey !== todayKey) {
+      const refreshed = { dateKey: todayKey, roundsCompleted: 0 };
+      setDailyProgress(refreshed);
+      localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify(refreshed));
+      setIsReplaying(false);
+      startNewGame();
+    }
+  }, [dailyProgress.dateKey, todayKey, startNewGame]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimeUntilReset(getTimeUntilReset());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem(tutorialStorageKey) === "true";
+    if (!dismissed) {
+      setShowTutorial(true);
+    }
+  }, [tutorialStorageKey]);
+
+  const openTutorial = () => {
+    setDontShowAgain(false);
+    setShowTutorial(true);
+  };
+
+  const closeTutorial = () => {
+    if (dontShowAgain) {
+      localStorage.setItem(tutorialStorageKey, "true");
+    }
+    setShowTutorial(false);
+  };
 
   const markRoundComplete = useCallback(() => {
     if (roundCompletedRef.current) {
